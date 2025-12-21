@@ -45,7 +45,7 @@
       {
         "command": "claudeWorktrees.deleteSession",
         "title": "Delete Session",
-        "icon": "$(trash)" 
+        "icon": "$(trash)"
       }
     ],
     "menus": {
@@ -58,11 +58,11 @@
       ],
       "view/item/context": [
         {
-            "command": "claudeWorktrees.deleteSession",
-            "when": "view == claudeSessionsView",
-            "group": "inline"
+          "command": "claudeWorktrees.deleteSession",
+          "when": "view == claudeSessionsView",
+          "group": "inline"
         }
-    ]
+      ]
     }
   },
   "scripts": {
@@ -71,24 +71,26 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "prepare": "husky"
   },
   "devDependencies": {
-    "@types/vscode": "^1.75.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.48.1",
-    "eslint": "^9.39.1",
-    "typescript": "^5.9.3",
+    "@types/vscode": "^1.75.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.1",
+    "husky": "^9.1.7",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.48.1"
   },
   "keybindings": [
     {
-        "command": "claudeWorktrees.createSession",
-        "key": "ctrl+shift+c",
-        "mac": "cmd+shift+c",
-        "when": "editorTextFocus"
+      "command": "claudeWorktrees.createSession",
+      "key": "ctrl+shift+c",
+      "mac": "cmd+shift+c",
+      "when": "editorTextFocus"
     }
   ]
 }

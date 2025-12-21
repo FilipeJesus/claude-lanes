@@ -94,13 +94,17 @@ export function activate(context: vscode.ExtensionContext) {
             { modal: true }, 
             "Delete"
         );
-        if (answer !== "Delete") return;
+        if (answer !== "Delete") {
+            return;
+        }
 
         try {
             // B. Kill Terminal
             const termName = `Claude: ${item.label}`;
             const terminal = vscode.window.terminals.find(t => t.name === termName);
-            if (terminal) terminal.dispose();
+            if (terminal) {
+                terminal.dispose();
+            }
 
             // C. Remove Worktree
             if (workspaceRoot) {
@@ -154,7 +158,9 @@ function openClaudeTerminal(taskName: string, worktreePath: string) {
 function execShell(cmd: string, cwd: string): Promise<string> {
     return new Promise((resolve, reject) => {
         cp.exec(cmd, { cwd }, (err, stdout, stderr) => {
-            if (err) return reject(stderr || err.message);
+            if (err) {
+                return reject(stderr || err.message);
+            }
             resolve(stdout);
         });
     });
@@ -162,5 +168,7 @@ function execShell(cmd: string, cwd: string): Promise<string> {
 
 function ensureWorktreeDirExists(root: string) {
     const dir = path.join(root, WORKTREE_FOLDER);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir);
+    }
 }
