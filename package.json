@@ -1,0 +1,86 @@
+{
+  "name": "claude-orchestra",
+  "displayName": "Claude Orchestra",
+  "description": "",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:claudeSessionsView",
+    "onCommand:claudeWorktrees.createSession"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-manager-container",
+          "title": "Claude Sessions",
+          "icon": "$(robot)"
+        }
+      ]
+    },
+    "views": {
+      "claude-manager-container": [
+        {
+          "id": "claudeSessionsView",
+          "name": "Active Sessions"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "claudeWorktrees.createSession",
+        "title": "New Session",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "claudeWorktrees.openSession",
+        "title": "Open Session"
+      },
+      {
+        "command": "claudeWorktrees.deleteSession",
+        "title": "Delete Session",
+        "icon": "$(trash)" 
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "claudeWorktrees.createSession",
+          "when": "view == claudeSessionsView",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+            "command": "claudeWorktrees.deleteSession",
+            "when": "view == claudeSessionsView",
+            "group": "inline"
+        }
+    ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.75.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.48.1",
+    "eslint": "^9.39.1",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
