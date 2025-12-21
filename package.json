@@ -99,7 +99,22 @@
         "mac": "cmd+shift+c",
         "when": "editorTextFocus"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Claude Lanes",
+      "properties": {
+        "claudeLanes.featuresJsonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Relative path within each worktree where features.json should be stored. Leave empty to use the worktree root."
+        },
+        "claudeLanes.testsJsonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Relative path within each worktree where tests.json should be stored. Leave empty to use the worktree root."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

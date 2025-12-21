@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, getSessionId, FeatureStatus, ClaudeStatus, ClaudeSessionData } from '../ClaudeSessionProvider';
+import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, getSessionId, FeatureStatus, ClaudeStatus, ClaudeSessionData, getFeaturesJsonPath, getTestsJsonPath } from '../ClaudeSessionProvider';
 import { SessionFormProvider } from '../SessionFormProvider';
 import { combinePromptAndCriteria } from '../extension';
 
@@ -1639,6 +1639,296 @@ suite('Claude Lanes Extension Test Suite', () => {
 			});
 
 			assert.ok(callbackInvoked, 'Callback should have been invoked with 3 parameters');
+		});
+	});
+
+	suite('Configurable JSON Paths', () => {
+
+		let tempDir: string;
+
+		setup(() => {
+			tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-json-paths-test-'));
+		});
+
+		teardown(async () => {
+			// Reset configuration to default values after each test
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('testsJsonPath', undefined, vscode.ConfigurationTarget.Global);
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		});
+
+		test('should return worktree root path for features.json when featuresJsonPath config is empty', async () => {
+			// Arrange: Ensure config is empty (default)
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getFeaturesJsonPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, 'features.json'),
+				'Should return features.json at worktree root when config is empty'
+			);
+		});
+
+		test('should return custom path for features.json when featuresJsonPath is configured', async () => {
+			// Arrange: Set custom path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getFeaturesJsonPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude', 'features.json'),
+				'Should return features.json at worktree/.claude when config is set to .claude'
+			);
+		});
+
+		test('should return worktree root path for tests.json when testsJsonPath config is empty', async () => {
+			// Arrange: Ensure config is empty (default)
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('testsJsonPath', '', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getTestsJsonPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, 'tests.json'),
+				'Should return tests.json at worktree root when config is empty'
+			);
+		});
+
+		test('should return custom path for tests.json when testsJsonPath is configured', async () => {
+			// Arrange: Set custom path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('testsJsonPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getTestsJsonPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude', 'tests.json'),
+				'Should return tests.json at worktree/.claude when config is set to .claude'
+			);
+		});
+
+		test('should be able to read claudeLanes configuration values', async () => {
+			// Arrange: Set a configuration value
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', 'custom/path', vscode.ConfigurationTarget.Global);
+
+			// Act: Read the configuration back
+			const readConfig = vscode.workspace.getConfiguration('claudeLanes');
+			const featuresPath = readConfig.get<string>('featuresJsonPath');
+
+			// Assert
+			assert.strictEqual(
+				featuresPath,
+				'custom/path',
+				'Should be able to read the configured value'
+			);
+		});
+
+		test('should verify package.json has correct configuration schema for featuresJsonPath', () => {
+			// Read and parse package.json from the project root
+			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+			// Assert: package.json has contributes.configuration section
+			assert.ok(
+				packageJson.contributes?.configuration,
+				'package.json should have contributes.configuration section'
+			);
+
+			// Assert: featuresJsonPath configuration exists with correct schema
+			const featuresConfig = packageJson.contributes.configuration.properties?.['claudeLanes.featuresJsonPath'];
+			assert.ok(
+				featuresConfig,
+				'package.json should have claudeLanes.featuresJsonPath configuration'
+			);
+			assert.strictEqual(
+				featuresConfig.type,
+				'string',
+				'featuresJsonPath should have type "string"'
+			);
+			assert.strictEqual(
+				featuresConfig.default,
+				'',
+				'featuresJsonPath should have default value of empty string'
+			);
+		});
+
+		test('should verify package.json has correct configuration schema for testsJsonPath', () => {
+			// Read and parse package.json from the project root
+			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+			// Assert: testsJsonPath configuration exists with correct schema
+			const testsConfig = packageJson.contributes.configuration.properties?.['claudeLanes.testsJsonPath'];
+			assert.ok(
+				testsConfig,
+				'package.json should have claudeLanes.testsJsonPath configuration'
+			);
+			assert.strictEqual(
+				testsConfig.type,
+				'string',
+				'testsJsonPath should have type "string"'
+			);
+			assert.strictEqual(
+				testsConfig.default,
+				'',
+				'testsJsonPath should have default value of empty string'
+			);
+		});
+
+		test('should use configured featuresJsonPath in getFeatureStatus', async () => {
+			// Arrange: Set custom path and create features.json in that location
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Create the .claude directory and features.json in it
+			const claudeDir = path.join(tempDir, '.claude');
+			fs.mkdirSync(claudeDir, { recursive: true });
+			const featuresJson = {
+				features: [
+					{ id: 'test-feature', description: 'Test feature', passes: false }
+				]
+			};
+			fs.writeFileSync(path.join(claudeDir, 'features.json'), JSON.stringify(featuresJson));
+
+			// Act
+			const result = getFeatureStatus(tempDir);
+
+			// Assert
+			assert.ok(result.currentFeature, 'Should find the feature in the custom path');
+			assert.strictEqual(result.currentFeature.id, 'test-feature', 'Should return the correct feature');
+		});
+
+		test('should return null when features.json is in root but config points elsewhere', async () => {
+			// Arrange: Set custom path but put features.json in root
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Create features.json in root (wrong location per config)
+			const featuresJson = {
+				features: [
+					{ id: 'root-feature', description: 'Feature in root', passes: false }
+				]
+			};
+			fs.writeFileSync(path.join(tempDir, 'features.json'), JSON.stringify(featuresJson));
+
+			// Act
+			const result = getFeatureStatus(tempDir);
+
+			// Assert: Should not find the feature since it's looking in .claude/
+			assert.strictEqual(result.currentFeature, null, 'Should not find feature when config points to different path');
+			assert.strictEqual(result.allComplete, false);
+		});
+
+		test('should trim whitespace from configured paths', async () => {
+			// Arrange: Set custom path with whitespace
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '  .claude  ', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getFeaturesJsonPath(tempDir);
+
+			// Assert: Should trim the whitespace
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude', 'features.json'),
+				'Should trim whitespace from configured path'
+			);
+		});
+
+		test('should reject paths with parent directory traversal (..)', async () => {
+			// Arrange: Set malicious path with parent directory traversal
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '../../etc', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getFeaturesJsonPath(tempDir);
+
+			// Assert: Should fall back to default path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, 'features.json'),
+				'Should reject path traversal and use default'
+			);
+		});
+
+		test('should reject absolute paths', async () => {
+			// Arrange: Set absolute path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '/etc/passwd', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getFeaturesJsonPath(tempDir);
+
+			// Assert: Should fall back to default path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, 'features.json'),
+				'Should reject absolute paths and use default'
+			);
+		});
+
+		test('should reject tests.json paths with parent directory traversal', async () => {
+			// Arrange: Set malicious path with parent directory traversal
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('testsJsonPath', '../../../tmp', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getTestsJsonPath(tempDir);
+
+			// Assert: Should fall back to default path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, 'tests.json'),
+				'Should reject path traversal and use default for tests.json'
+			);
+		});
+
+		test('should convert Windows backslashes to forward slashes', async () => {
+			// Arrange: Set path with Windows backslashes
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', '.claude\\subdir', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getFeaturesJsonPath(tempDir);
+
+			// Assert: Should normalize backslashes
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude', 'subdir', 'features.json'),
+				'Should convert backslashes to forward slashes'
+			);
+		});
+
+		test('should allow nested relative paths without traversal', async () => {
+			// Arrange: Set valid nested path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', 'config/claude/tracking', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getFeaturesJsonPath(tempDir);
+
+			// Assert: Should accept valid nested path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, 'config', 'claude', 'tracking', 'features.json'),
+				'Should accept valid nested relative paths'
+			);
 		});
 	});
 });

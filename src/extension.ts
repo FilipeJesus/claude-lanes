@@ -7,6 +7,32 @@ import { SessionFormProvider } from './SessionFormProvider';
 
 const WORKTREE_FOLDER = '.worktrees';
 
+/**
+ * Get the glob pattern for watching features.json based on configuration.
+ * Security: Validates path to prevent directory traversal in glob patterns.
+ * @returns Glob pattern for watching features.json in worktrees
+ */
+function getFeaturesWatchPattern(): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>('featuresJsonPath', '');
+
+    if (relativePath && relativePath.trim()) {
+        // Normalize backslashes and remove leading/trailing slashes
+        const normalizedPath = relativePath.trim()
+            .replace(/\\/g, '/') // Convert Windows backslashes to forward slashes
+            .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+
+        // Security: Reject paths with parent directory traversal
+        if (normalizedPath.includes('..')) {
+            console.warn(`Claude Lanes: Invalid path in featuresJsonPath: ${normalizedPath}. Using default.`);
+            return '.worktrees/**/features.json';
+        }
+
+        return `.worktrees/**/${normalizedPath}/features.json`;
+    }
+    return '.worktrees/**/features.json';
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('Congratulations, "Claude Lanes" is now active!'); // Check Debug Console for this
 
@@ -52,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Also watch for features.json changes to refresh the sidebar
         const featuresWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(workspaceRoot, '.worktrees/**/features.json')
+            new vscode.RelativePattern(workspaceRoot, getFeaturesWatchPattern())
         );
 
         featuresWatcher.onDidChange(() => sessionProvider.refresh());
