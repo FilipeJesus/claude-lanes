@@ -12,7 +12,7 @@ suite('Claude Lanes Extension Test Suite', () => {
 
 	// Create a temp directory structure before tests
 	setup(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-orchestra-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 	});
 

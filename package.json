@@ -1,32 +1,47 @@
 {
   "name": "claude-lanes",
   "displayName": "Claude Lanes",
-  "publisher": "claude-lanes",
+  "publisher": "FilipeMarquesJesus",
   "description": "Manage parallel Claude Code sessions via Git Worktrees",
-  "version": "0.0.1",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FilipeJesus/claude-lanes"
+  },
+  "homepage": "https://github.com/FilipeJesus/claude-lanes#readme",
+  "bugs": {
+    "url": "https://github.com/FilipeJesus/claude-lanes/issues"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "worktree",
+    "git",
+    "parallel",
+    "sessions",
+    "anthropic"
+  ],
   "engines": {
     "vscode": "^1.75.0"
   },
   "categories": [
-    "Other"
-  ],
-  "activationEvents": [
-    "onView:claudeSessionsView",
-    "onCommand:claudeWorktrees.createSession"
+    "Other",
+    "Machine Learning"
   ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "claude-orchestra-sidebar",
+          "id": "claude-lanes-sidebar",
           "title": "Claude Lanes",
           "icon": "$(robot)"
         }
       ]
     },
     "views": {
-      "claude-orchestra-sidebar": [
+      "claude-lanes-sidebar": [
         {
           "id": "claudeSessionsView",
           "name": "Active Sessions"
@@ -91,7 +106,11 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test",
-    "prepare": "husky"
+    "prepare": "husky",
+    "release": "./scripts/release.sh",
+    "release:patch": "./scripts/release.sh patch",
+    "release:minor": "./scripts/release.sh minor",
+    "release:major": "./scripts/release.sh major"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -99,6 +118,7 @@
     "@types/vscode": "^1.75.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.7.1",
     "eslint": "^9.39.1",
     "husky": "^9.1.7",
     "typescript": "^5.9.3",

@@ -21,7 +21,7 @@ No more context contamination. No more half-finished files clashing with each ot
 ## 🚀 How It Works
 
 1.  **Create:** You click **+** and name your session (e.g., `refactor-api`).
-2.  **Orchestrate:** The extension runs `git worktree add .worktrees/refactor-api -b refactor-api`.
+2.  **laneste:** The extension runs `git worktree add .worktrees/refactor-api -b refactor-api`.
 3.  **Launch:** It opens a new terminal tab, `cd`s into that folder, and starts `claude`.
 4.  **Code:** The agent works on files in that isolated folder. Changes are staged on the `refactor-api` branch.
 
@@ -42,8 +42,8 @@ claude login
 
 1. Clone this repository and install dependencies:
    ```bash
-   git clone https://github.com/your-username/claude-orchestra.git
-   cd claude-orchestra
+   git clone https://github.com/your-username/claude-lanes.git
+   cd claude-lanes
    npm install
    ```
 
