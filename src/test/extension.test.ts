@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, getSessionId, FeatureStatus, ClaudeStatus, ClaudeSessionData, getFeaturesJsonPath, getTestsJsonPath } from '../ClaudeSessionProvider';
+import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, getSessionId, FeatureStatus, ClaudeStatus, ClaudeSessionData, getFeaturesJsonPath, getTestsJsonPath, getClaudeSessionPath, getClaudeStatusPath } from '../ClaudeSessionProvider';
 import { SessionFormProvider } from '../SessionFormProvider';
 import { combinePromptAndCriteria } from '../extension';
 
@@ -1651,10 +1651,12 @@ suite('Claude Lanes Extension Test Suite', () => {
 		});
 
 		teardown(async () => {
-			// Reset configuration to default values after each test
+			// Reset all configuration values to default after each test
 			const config = vscode.workspace.getConfiguration('claudeLanes');
 			await config.update('featuresJsonPath', undefined, vscode.ConfigurationTarget.Global);
 			await config.update('testsJsonPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('claudeSessionPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('claudeStatusPath', undefined, vscode.ConfigurationTarget.Global);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		});
 
@@ -1928,6 +1930,253 @@ suite('Claude Lanes Extension Test Suite', () => {
 				result,
 				path.join(tempDir, 'config', 'claude', 'tracking', 'features.json'),
 				'Should accept valid nested relative paths'
+			);
+		});
+	});
+
+	suite('Configurable Claude Session and Status Paths', () => {
+
+		let tempDir: string;
+
+		setup(() => {
+			tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-session-status-paths-test-'));
+		});
+
+		teardown(async () => {
+			// Reset all configuration values to default after each test
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('featuresJsonPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('testsJsonPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('claudeSessionPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('claudeStatusPath', undefined, vscode.ConfigurationTarget.Global);
+			fs.rmSync(tempDir, { recursive: true, force: true });
+		});
+
+		test('should return worktree root path for .claude-session when claudeSessionPath config is empty', async () => {
+			// Arrange: Ensure config is empty (default)
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeSessionPath', '', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeSessionPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude-session'),
+				'Should return .claude-session at worktree root when config is empty'
+			);
+		});
+
+		test('should return custom path for .claude-session when claudeSessionPath is configured', async () => {
+			// Arrange: Set custom path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeSessionPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeSessionPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude', '.claude-session'),
+				'Should return .claude-session at worktree/.claude when config is set to .claude'
+			);
+		});
+
+		test('should return worktree root path for .claude-status when claudeStatusPath config is empty', async () => {
+			// Arrange: Ensure config is empty (default)
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeStatusPath', '', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeStatusPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude-status'),
+				'Should return .claude-status at worktree root when config is empty'
+			);
+		});
+
+		test('should return custom path for .claude-status when claudeStatusPath is configured', async () => {
+			// Arrange: Set custom path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeStatusPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeStatusPath(tempDir);
+
+			// Assert
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude', '.claude-status'),
+				'Should return .claude-status at worktree/.claude when config is set to .claude'
+			);
+		});
+
+		test('should read session ID from configured claudeSessionPath location', async () => {
+			// Arrange: Set custom path and create .claude-session in that location
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeSessionPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Create the .claude directory and .claude-session in it
+			const claudeDir = path.join(tempDir, '.claude');
+			fs.mkdirSync(claudeDir, { recursive: true });
+			const sessionData = {
+				sessionId: 'custom-session-123',
+				timestamp: '2025-12-21T10:00:00Z'
+			};
+			fs.writeFileSync(path.join(claudeDir, '.claude-session'), JSON.stringify(sessionData));
+
+			// Act
+			const result = getSessionId(tempDir);
+
+			// Assert
+			assert.ok(result, 'Should find the session in the custom path');
+			assert.strictEqual(result.sessionId, 'custom-session-123', 'Should return the correct session ID');
+			assert.strictEqual(result.timestamp, '2025-12-21T10:00:00Z', 'Should return the correct timestamp');
+		});
+
+		test('should read Claude status from configured claudeStatusPath location', async () => {
+			// Arrange: Set custom path and create .claude-status in that location
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeStatusPath', '.claude', vscode.ConfigurationTarget.Global);
+
+			// Create the .claude directory and .claude-status in it
+			const claudeDir = path.join(tempDir, '.claude');
+			fs.mkdirSync(claudeDir, { recursive: true });
+			const statusData = {
+				status: 'waiting_for_user',
+				timestamp: '2025-12-21T10:30:00Z',
+				message: 'Waiting for confirmation'
+			};
+			fs.writeFileSync(path.join(claudeDir, '.claude-status'), JSON.stringify(statusData));
+
+			// Act
+			const result = getClaudeStatus(tempDir);
+
+			// Assert
+			assert.ok(result, 'Should find the status in the custom path');
+			assert.strictEqual(result.status, 'waiting_for_user', 'Should return the correct status');
+			assert.strictEqual(result.timestamp, '2025-12-21T10:30:00Z', 'Should return the correct timestamp');
+			assert.strictEqual(result.message, 'Waiting for confirmation', 'Should return the correct message');
+		});
+
+		test('should reject claudeSessionPath with parent directory traversal and fall back to worktree root', async () => {
+			// Arrange: Set malicious path with parent directory traversal
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeSessionPath', '../../etc', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeSessionPath(tempDir);
+
+			// Assert: Should fall back to default path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude-session'),
+				'Should reject path traversal and use default for .claude-session'
+			);
+		});
+
+		test('should reject claudeStatusPath with parent directory traversal and fall back to worktree root', async () => {
+			// Arrange: Set malicious path with parent directory traversal
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeStatusPath', '../../../tmp', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeStatusPath(tempDir);
+
+			// Assert: Should fall back to default path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude-status'),
+				'Should reject path traversal and use default for .claude-status'
+			);
+		});
+
+		test('should reject claudeSessionPath with absolute path and fall back to worktree root', async () => {
+			// Arrange: Set absolute path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeSessionPath', '/etc/passwd', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeSessionPath(tempDir);
+
+			// Assert: Should fall back to default path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude-session'),
+				'Should reject absolute paths and use default for .claude-session'
+			);
+		});
+
+		test('should reject claudeStatusPath with absolute path and fall back to worktree root', async () => {
+			// Arrange: Set absolute path
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('claudeStatusPath', '/tmp/evil', vscode.ConfigurationTarget.Global);
+
+			// Act
+			const result = getClaudeStatusPath(tempDir);
+
+			// Assert: Should fall back to default path
+			assert.strictEqual(
+				result,
+				path.join(tempDir, '.claude-status'),
+				'Should reject absolute paths and use default for .claude-status'
+			);
+		});
+
+		test('should verify package.json has correct configuration schema for claudeSessionPath', () => {
+			// Read and parse package.json from the project root
+			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+			// Assert: package.json has contributes.configuration section
+			assert.ok(
+				packageJson.contributes?.configuration,
+				'package.json should have contributes.configuration section'
+			);
+
+			// Assert: claudeSessionPath configuration exists with correct schema
+			const sessionConfig = packageJson.contributes.configuration.properties?.['claudeLanes.claudeSessionPath'];
+			assert.ok(
+				sessionConfig,
+				'package.json should have claudeLanes.claudeSessionPath configuration'
+			);
+			assert.strictEqual(
+				sessionConfig.type,
+				'string',
+				'claudeSessionPath should have type "string"'
+			);
+			assert.strictEqual(
+				sessionConfig.default,
+				'',
+				'claudeSessionPath should have default value of empty string'
+			);
+		});
+
+		test('should verify package.json has correct configuration schema for claudeStatusPath', () => {
+			// Read and parse package.json from the project root
+			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+			// Assert: claudeStatusPath configuration exists with correct schema
+			const statusConfig = packageJson.contributes.configuration.properties?.['claudeLanes.claudeStatusPath'];
+			assert.ok(
+				statusConfig,
+				'package.json should have claudeLanes.claudeStatusPath configuration'
+			);
+			assert.strictEqual(
+				statusConfig.type,
+				'string',
+				'claudeStatusPath should have type "string"'
+			);
+			assert.strictEqual(
+				statusConfig.default,
+				'',
+				'claudeStatusPath should have default value of empty string'
 			);
 		});
 	});

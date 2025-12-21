@@ -112,6 +112,16 @@
           "type": "string",
           "default": "",
           "description": "Relative path within each worktree where tests.json should be stored. Leave empty to use the worktree root."
+        },
+        "claudeLanes.claudeSessionPath": {
+          "type": "string",
+          "default": "",
+          "description": "Relative path within each worktree where .claude-session file should be stored. Leave empty to use the worktree root."
+        },
+        "claudeLanes.claudeStatusPath": {
+          "type": "string",
+          "default": "",
+          "description": "Relative path within each worktree where .claude-status file should be stored. Leave empty to use the worktree root."
         }
       }
     }

@@ -97,6 +97,32 @@ export function getTestsJsonPath(worktreePath: string): string {
     return validateAndBuildPath(relativePath, worktreePath, 'tests.json');
 }
 
+/**
+ * Get the configured path for .claude-session file relative to a worktree.
+ * Returns the full path to the .claude-session file.
+ * Security: Validates path to prevent directory traversal attacks.
+ * @param worktreePath Path to the worktree directory
+ * @returns Full path to .claude-session based on configuration
+ */
+export function getClaudeSessionPath(worktreePath: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>('claudeSessionPath', '');
+    return validateAndBuildPath(relativePath, worktreePath, '.claude-session');
+}
+
+/**
+ * Get the configured path for .claude-status file relative to a worktree.
+ * Returns the full path to the .claude-status file.
+ * Security: Validates path to prevent directory traversal attacks.
+ * @param worktreePath Path to the worktree directory
+ * @returns Full path to .claude-status based on configuration
+ */
+export function getClaudeStatusPath(worktreePath: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>('claudeStatusPath', '');
+    return validateAndBuildPath(relativePath, worktreePath, '.claude-status');
+}
+
 // Session data from .claude-session file
 export interface ClaudeSessionData {
     sessionId: string;
@@ -109,7 +135,7 @@ export interface ClaudeSessionData {
  * @returns ClaudeStatus if valid file exists, null otherwise
  */
 export function getClaudeStatus(worktreePath: string): ClaudeStatus | null {
-    const statusPath = path.join(worktreePath, '.claude-status');
+    const statusPath = getClaudeStatusPath(worktreePath);
 
     try {
         if (!fs.existsSync(statusPath)) {
@@ -141,7 +167,7 @@ export function getClaudeStatus(worktreePath: string): ClaudeStatus | null {
  * @returns ClaudeSessionData if valid file exists, null otherwise
  */
 export function getSessionId(worktreePath: string): ClaudeSessionData | null {
-    const sessionPath = path.join(worktreePath, '.claude-session');
+    const sessionPath = getClaudeSessionPath(worktreePath);
 
     try {
         if (!fs.existsSync(sessionPath)) {
