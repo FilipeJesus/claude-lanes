@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as cp from 'child_process';
-import { ClaudeSessionProvider, SessionItem } from './ClaudeSessionProvider';
+import { ClaudeSessionProvider, SessionItem, getSessionId } from './ClaudeSessionProvider';
 import { SessionFormProvider } from './SessionFormProvider';
 
 const WORKTREE_FOLDER = '.worktrees';
@@ -60,6 +60,17 @@ export function activate(context: vscode.ExtensionContext) {
         featuresWatcher.onDidDelete(() => sessionProvider.refresh());
 
         context.subscriptions.push(featuresWatcher);
+
+        // Also watch for .claude-session file changes to refresh the sidebar
+        const sessionWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(workspaceRoot, '.worktrees/**/.claude-session')
+        );
+
+        sessionWatcher.onDidChange(() => sessionProvider.refresh());
+        sessionWatcher.onDidCreate(() => sessionProvider.refresh());
+        sessionWatcher.onDidDelete(() => sessionProvider.refresh());
+
+        context.subscriptions.push(sessionWatcher);
     }
 
     // 2. Register CREATE Command (for command palette / keybinding usage)
@@ -246,13 +257,19 @@ function openClaudeTerminal(taskName: string, worktreePath: string, prompt?: str
 
     terminal.show();
 
-    // C. Auto-start Claude
-    // We send the command immediately. Since cwd is set above, it runs in the right place.
-    terminal.sendText("claude");
+    // C. Auto-start Claude - resume if session ID exists, otherwise start fresh
+    const sessionData = getSessionId(worktreePath);
+    if (sessionData?.sessionId) {
+        // Resume existing session
+        terminal.sendText(`claude --resume ${sessionData.sessionId}`);
+    } else {
+        // Start new session
+        terminal.sendText("claude");
+    }
 
-    // D. Send the starting prompt if provided
+    // D. Send the starting prompt if provided (only for new sessions)
     // We send it after a short delay to allow Claude to initialize
-    if (prompt && prompt.trim()) {
+    if (!sessionData?.sessionId && prompt && prompt.trim()) {
         setTimeout(() => {
             terminal.sendText(prompt);
         }, 2000); // 2 second delay to allow Claude CLI to start
@@ -283,8 +300,11 @@ function ensureWorktreeDirExists(root: string) {
  */
 interface ClaudeSettings {
     hooks?: {
+        SessionStart?: HookEntry[];
         Stop?: HookEntry[];
         UserPromptSubmit?: HookEntry[];
+        Notification?: HookEntry[];
+        PreToolUse?: HookEntry[];
         [key: string]: HookEntry[] | undefined;
     };
     [key: string]: unknown;
@@ -343,19 +363,44 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
         command: "echo '{\"status\":\"working\"}' > .claude-status"
     };
 
-    // Helper to check if our hook already exists
-    const hookExists = (entries: HookEntry[] | undefined): boolean => {
+    // Define our session ID capture hook
+    // $CLAUDE_SESSION_ID is an environment variable provided by Claude to hooks
+    const sessionIdCapture = {
+        type: 'command',
+        command: "echo '{\"sessionId\":\"'$CLAUDE_SESSION_ID'\",\"timestamp\":\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'\"}' > .claude-session"
+    };
+
+    // Helper to check if our status hook already exists
+    const statusHookExists = (entries: HookEntry[] | undefined): boolean => {
         if (!entries) {return false;}
         return entries.some(entry =>
             entry.hooks.some(h => h.command.includes('.claude-status'))
         );
     };
 
+    // Helper to check if our session ID hook already exists
+    const sessionHookExists = (entries: HookEntry[] | undefined): boolean => {
+        if (!entries) {return false;}
+        return entries.some(entry =>
+            entry.hooks.some(h => h.command.includes('.claude-session'))
+        );
+    };
+
+    // Add SessionStart hook (fires when Claude session starts = capture session ID)
+    if (!settings.hooks.SessionStart) {
+        settings.hooks.SessionStart = [];
+    }
+    if (!sessionHookExists(settings.hooks.SessionStart)) {
+        settings.hooks.SessionStart.push({
+            hooks: [sessionIdCapture]
+        });
+    }
+
     // Add Stop hook (fires when Claude finishes responding = waiting for user)
     if (!settings.hooks.Stop) {
         settings.hooks.Stop = [];
     }
-    if (!hookExists(settings.hooks.Stop)) {
+    if (!statusHookExists(settings.hooks.Stop)) {
         settings.hooks.Stop.push({
             hooks: [statusWriteWaiting]
         });
@@ -365,7 +410,7 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     if (!settings.hooks.UserPromptSubmit) {
         settings.hooks.UserPromptSubmit = [];
     }
-    if (!hookExists(settings.hooks.UserPromptSubmit)) {
+    if (!statusHookExists(settings.hooks.UserPromptSubmit)) {
         settings.hooks.UserPromptSubmit.push({
             hooks: [statusWriteWorking]
         });
@@ -375,7 +420,7 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     if (!settings.hooks.Notification) {
         settings.hooks.Notification = [];
     }
-    if (!hookExists(settings.hooks.Notification)) {
+    if (!statusHookExists(settings.hooks.Notification)) {
         settings.hooks.Notification.push({
             matcher: 'permission_prompt',
             hooks: [statusWriteWaiting]
@@ -386,7 +431,7 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     if (!settings.hooks.PreToolUse) {
         settings.hooks.PreToolUse = [];
     }
-    if (!hookExists(settings.hooks.PreToolUse)) {
+    if (!statusHookExists(settings.hooks.PreToolUse)) {
         settings.hooks.PreToolUse.push({
             matcher: '.*',
             hooks: [statusWriteWorking]
