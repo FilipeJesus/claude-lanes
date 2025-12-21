@@ -7,6 +7,67 @@ import { SessionFormProvider } from './SessionFormProvider';
 
 const WORKTREE_FOLDER = '.worktrees';
 
+/**
+ * Get the glob pattern for watching a file based on configuration.
+ * Security: Validates path to prevent directory traversal in glob patterns.
+ * @param configKey The configuration key to read (e.g., 'featuresJsonPath')
+ * @param filename The filename to watch (e.g., 'features.json')
+ * @returns Glob pattern for watching the file in worktrees
+ */
+function getWatchPattern(configKey: string, filename: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>(configKey, '');
+
+    if (relativePath && relativePath.trim()) {
+        // Normalize backslashes and remove leading/trailing slashes
+        const normalizedPath = relativePath.trim()
+            .replace(/\\/g, '/') // Convert Windows backslashes to forward slashes
+            .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+
+        // Security: Reject absolute paths
+        if (path.isAbsolute(normalizedPath)) {
+            console.warn(`Claude Lanes: Absolute paths not allowed in ${configKey}. Using default.`);
+            return `.worktrees/**/${filename}`;
+        }
+
+        // Security: Reject paths with parent directory traversal
+        if (normalizedPath.includes('..')) {
+            console.warn(`Claude Lanes: Invalid path in ${configKey}: ${normalizedPath}. Using default.`);
+            return `.worktrees/**/${filename}`;
+        }
+
+        return `.worktrees/**/${normalizedPath}/${filename}`;
+    }
+    return `.worktrees/**/${filename}`;
+}
+
+/**
+ * Get the glob pattern for watching features.json based on configuration.
+ * Security: Validates path to prevent directory traversal in glob patterns.
+ * @returns Glob pattern for watching features.json in worktrees
+ */
+function getFeaturesWatchPattern(): string {
+    return getWatchPattern('featuresJsonPath', 'features.json');
+}
+
+/**
+ * Get the glob pattern for watching .claude-status based on configuration.
+ * Security: Validates path to prevent directory traversal in glob patterns.
+ * @returns Glob pattern for watching .claude-status in worktrees
+ */
+function getStatusWatchPattern(): string {
+    return getWatchPattern('claudeStatusPath', '.claude-status');
+}
+
+/**
+ * Get the glob pattern for watching .claude-session based on configuration.
+ * Security: Validates path to prevent directory traversal in glob patterns.
+ * @returns Glob pattern for watching .claude-session in worktrees
+ */
+function getSessionWatchPattern(): string {
+    return getWatchPattern('claudeSessionPath', '.claude-session');
+}
+
 export function activate(context: vscode.ExtensionContext) {
     console.log('Congratulations, "Claude Lanes" is now active!'); // Check Debug Console for this
 
@@ -40,7 +101,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Watch for .claude-status file changes to refresh the sidebar
     if (workspaceRoot) {
         const statusWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(workspaceRoot, '.worktrees/**/.claude-status')
+            new vscode.RelativePattern(workspaceRoot, getStatusWatchPattern())
         );
 
         // Refresh on any status file change
@@ -52,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Also watch for features.json changes to refresh the sidebar
         const featuresWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(workspaceRoot, '.worktrees/**/features.json')
+            new vscode.RelativePattern(workspaceRoot, getFeaturesWatchPattern())
         );
 
         featuresWatcher.onDidChange(() => sessionProvider.refresh());
@@ -63,7 +124,7 @@ export function activate(context: vscode.ExtensionContext) {
 
         // Also watch for .claude-session file changes to refresh the sidebar
         const sessionWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(workspaceRoot, '.worktrees/**/.claude-session')
+            new vscode.RelativePattern(workspaceRoot, getSessionWatchPattern())
         );
 
         sessionWatcher.onDidChange(() => sessionProvider.refresh());
@@ -338,6 +399,33 @@ interface HookEntry {
 }
 
 /**
+ * Get the relative path for status/session files based on configuration.
+ * Returns an empty string if the path is at the root, otherwise returns the path with a trailing slash.
+ * @param configKey The configuration key to read
+ * @returns The relative path prefix for the file (empty string or 'path/')
+ */
+function getRelativeFilePath(configKey: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>(configKey, '');
+
+    if (!relativePath || !relativePath.trim()) {
+        return '';
+    }
+
+    const trimmedPath = relativePath.trim()
+        .replace(/\\/g, '/') // Normalize backslashes to forward slashes
+        .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+
+    // Security: Reject paths with parent directory traversal
+    if (trimmedPath.includes('..')) {
+        console.warn(`Claude Lanes: Invalid path in ${configKey}: ${trimmedPath}. Using default.`);
+        return '';
+    }
+
+    return trimmedPath + '/';
+}
+
+/**
  * Sets up Claude hooks for status file updates in a worktree.
  * Merges with existing hooks without overwriting user configuration.
  */
@@ -345,9 +433,29 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     const claudeDir = path.join(worktreePath, '.claude');
     const settingsPath = path.join(claudeDir, 'settings.json');
 
+    // Get configured paths for status and session files
+    const statusRelPath = getRelativeFilePath('claudeStatusPath');
+    const sessionRelPath = getRelativeFilePath('claudeSessionPath');
+
     // Ensure .claude directory exists
     if (!fs.existsSync(claudeDir)) {
         fs.mkdirSync(claudeDir, { recursive: true });
+    }
+
+    // Ensure status file directory exists if configured
+    if (statusRelPath) {
+        const statusDir = path.join(worktreePath, statusRelPath.replace(/\/$/, ''));
+        if (!fs.existsSync(statusDir)) {
+            fs.mkdirSync(statusDir, { recursive: true });
+        }
+    }
+
+    // Ensure session file directory exists if configured
+    if (sessionRelPath) {
+        const sessionDir = path.join(worktreePath, sessionRelPath.replace(/\/$/, ''));
+        if (!fs.existsSync(sessionDir)) {
+            fs.mkdirSync(sessionDir, { recursive: true });
+        }
     }
 
     // Read existing settings or start fresh
@@ -374,22 +482,24 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
         settings.hooks = {};
     }
 
-    // Define our status hooks
+    // Define our status hooks with configured paths
+    const statusFilePath = `${statusRelPath}.claude-status`;
     const statusWriteWaiting = {
         type: 'command',
-        command: "echo '{\"status\":\"waiting_for_user\"}' > .claude-status"
+        command: `echo '{"status":"waiting_for_user"}' > ${statusFilePath}`
     };
 
     const statusWriteWorking = {
         type: 'command',
-        command: "echo '{\"status\":\"working\"}' > .claude-status"
+        command: `echo '{"status":"working"}' > ${statusFilePath}`
     };
 
-    // Define our session ID capture hook
+    // Define our session ID capture hook with configured path
     // Session ID is provided via stdin as JSON: {"session_id": "...", ...}
+    const sessionFilePath = `${sessionRelPath}.claude-session`;
     const sessionIdCapture = {
         type: 'command',
-        command: "jq -r --arg ts \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" '{sessionId: .session_id, timestamp: $ts}' > .claude-session"
+        command: `jq -r --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{sessionId: .session_id, timestamp: $ts}' > ${sessionFilePath}`
     };
 
     // Helper to check if our status hook already exists

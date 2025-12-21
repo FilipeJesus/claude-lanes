@@ -28,6 +28,101 @@ export interface ClaudeStatus {
 // Valid status values for validation
 const VALID_STATUS_VALUES: ClaudeStatusState[] = ['working', 'waiting_for_user', 'idle', 'error'];
 
+/**
+ * Validates and sanitizes a relative path for security.
+ * Rejects absolute paths and parent directory traversal attempts.
+ * @param relativePath The user-provided relative path
+ * @param worktreePath The base worktree path
+ * @param filename The filename to append (e.g., 'features.json')
+ * @returns The validated full path, or the default path if validation fails
+ */
+function validateAndBuildPath(relativePath: string, worktreePath: string, filename: string): string {
+    const defaultPath = path.join(worktreePath, filename);
+
+    if (!relativePath || !relativePath.trim()) {
+        return defaultPath;
+    }
+
+    const trimmedPath = relativePath.trim()
+        .replace(/\\/g, '/'); // Normalize backslashes to forward slashes
+
+    // Security: Reject absolute paths
+    if (path.isAbsolute(trimmedPath)) {
+        console.warn(`Claude Lanes: Absolute paths not allowed in configuration: ${trimmedPath}. Using default.`);
+        return defaultPath;
+    }
+
+    // Security: Reject parent directory traversal
+    if (trimmedPath.includes('..')) {
+        console.warn(`Claude Lanes: Parent directory traversal not allowed: ${trimmedPath}. Using default.`);
+        return defaultPath;
+    }
+
+    const resolvedPath = path.join(worktreePath, trimmedPath, filename);
+
+    // Security: Verify the resolved path is within worktree (belt and suspenders)
+    const normalizedWorktree = path.normalize(worktreePath + path.sep);
+    const normalizedResolved = path.normalize(resolvedPath);
+    if (!normalizedResolved.startsWith(normalizedWorktree)) {
+        console.warn(`Claude Lanes: Path traversal detected. Using default.`);
+        return defaultPath;
+    }
+
+    return resolvedPath;
+}
+
+/**
+ * Get the configured path for features.json relative to a worktree.
+ * Returns the full path to the features.json file.
+ * Security: Validates path to prevent directory traversal attacks.
+ * @param worktreePath Path to the worktree directory
+ * @returns Full path to features.json based on configuration
+ */
+export function getFeaturesJsonPath(worktreePath: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>('featuresJsonPath', '');
+    return validateAndBuildPath(relativePath, worktreePath, 'features.json');
+}
+
+/**
+ * Get the configured path for tests.json relative to a worktree.
+ * Returns the full path to the tests.json file.
+ * Security: Validates path to prevent directory traversal attacks.
+ * @param worktreePath Path to the worktree directory
+ * @returns Full path to tests.json based on configuration
+ */
+export function getTestsJsonPath(worktreePath: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>('testsJsonPath', '');
+    return validateAndBuildPath(relativePath, worktreePath, 'tests.json');
+}
+
+/**
+ * Get the configured path for .claude-session file relative to a worktree.
+ * Returns the full path to the .claude-session file.
+ * Security: Validates path to prevent directory traversal attacks.
+ * @param worktreePath Path to the worktree directory
+ * @returns Full path to .claude-session based on configuration
+ */
+export function getClaudeSessionPath(worktreePath: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>('claudeSessionPath', '');
+    return validateAndBuildPath(relativePath, worktreePath, '.claude-session');
+}
+
+/**
+ * Get the configured path for .claude-status file relative to a worktree.
+ * Returns the full path to the .claude-status file.
+ * Security: Validates path to prevent directory traversal attacks.
+ * @param worktreePath Path to the worktree directory
+ * @returns Full path to .claude-status based on configuration
+ */
+export function getClaudeStatusPath(worktreePath: string): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const relativePath = config.get<string>('claudeStatusPath', '');
+    return validateAndBuildPath(relativePath, worktreePath, '.claude-status');
+}
+
 // Session data from .claude-session file
 export interface ClaudeSessionData {
     sessionId: string;
@@ -40,7 +135,7 @@ export interface ClaudeSessionData {
  * @returns ClaudeStatus if valid file exists, null otherwise
  */
 export function getClaudeStatus(worktreePath: string): ClaudeStatus | null {
-    const statusPath = path.join(worktreePath, '.claude-status');
+    const statusPath = getClaudeStatusPath(worktreePath);
 
     try {
         if (!fs.existsSync(statusPath)) {
@@ -72,7 +167,7 @@ export function getClaudeStatus(worktreePath: string): ClaudeStatus | null {
  * @returns ClaudeSessionData if valid file exists, null otherwise
  */
 export function getSessionId(worktreePath: string): ClaudeSessionData | null {
-    const sessionPath = path.join(worktreePath, '.claude-session');
+    const sessionPath = getClaudeSessionPath(worktreePath);
 
     try {
         if (!fs.existsSync(sessionPath)) {
@@ -110,7 +205,7 @@ export function getSessionId(worktreePath: string): ClaudeSessionData | null {
  * @returns FeatureStatus with current feature and completion status
  */
 export function getFeatureStatus(worktreePath: string): FeatureStatus {
-    const featuresPath = path.join(worktreePath, 'features.json');
+    const featuresPath = getFeaturesJsonPath(worktreePath);
 
     try {
         if (!fs.existsSync(featuresPath)) {
