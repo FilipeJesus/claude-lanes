@@ -146,9 +146,20 @@ export function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // 5. Register SETUP STATUS HOOKS Command
+    let setupHooksDisposable = vscode.commands.registerCommand('claudeWorktrees.setupStatusHooks', async (item: SessionItem) => {
+        try {
+            await setupStatusHooks(item.worktreePath);
+            vscode.window.showInformationMessage(`Status hooks configured for '${item.label}'`);
+        } catch (err: any) {
+            vscode.window.showErrorMessage(`Failed to setup hooks: ${err.message}`);
+        }
+    });
+
     context.subscriptions.push(createDisposable);
     context.subscriptions.push(openDisposable);
     context.subscriptions.push(deleteDisposable);
+    context.subscriptions.push(setupHooksDisposable);
 }
 
 // THE CORE FUNCTION: Manages the Terminal Tabs
@@ -196,4 +207,101 @@ function ensureWorktreeDirExists(root: string) {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir);
     }
+}
+
+/**
+ * Interface for Claude settings.json structure
+ */
+interface ClaudeSettings {
+    hooks?: {
+        Stop?: HookEntry[];
+        UserPromptSubmit?: HookEntry[];
+        [key: string]: HookEntry[] | undefined;
+    };
+    [key: string]: unknown;
+}
+
+interface HookEntry {
+    matcher?: string;
+    hooks: { type: string; command: string }[];
+}
+
+/**
+ * Sets up Claude hooks for status file updates in a worktree.
+ * Merges with existing hooks without overwriting user configuration.
+ */
+async function setupStatusHooks(worktreePath: string): Promise<void> {
+    const claudeDir = path.join(worktreePath, '.claude');
+    const settingsPath = path.join(claudeDir, 'settings.json');
+
+    // Ensure .claude directory exists
+    if (!fs.existsSync(claudeDir)) {
+        fs.mkdirSync(claudeDir, { recursive: true });
+    }
+
+    // Read existing settings or start fresh
+    let settings: ClaudeSettings = {};
+    if (fs.existsSync(settingsPath)) {
+        try {
+            const content = fs.readFileSync(settingsPath, 'utf-8');
+            settings = JSON.parse(content);
+        } catch {
+            // If invalid JSON, start fresh but warn user
+            const answer = await vscode.window.showWarningMessage(
+                'Existing .claude/settings.json is invalid. Overwrite?',
+                'Overwrite',
+                'Cancel'
+            );
+            if (answer !== 'Overwrite') {
+                throw new Error('Setup cancelled - invalid existing settings');
+            }
+        }
+    }
+
+    // Initialize hooks object if needed
+    if (!settings.hooks) {
+        settings.hooks = {};
+    }
+
+    // Define our status hooks
+    const statusWriteWaiting = {
+        type: 'command',
+        command: 'echo \'{"status":"waiting_for_user","timestamp":"\'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"\'"}\' > .claude-status'
+    };
+
+    const statusWriteWorking = {
+        type: 'command',
+        command: 'echo \'{"status":"working","timestamp":"\'"$(date -u +%Y-%m-%dT%H:%M:%SZ)"\'"}\' > .claude-status'
+    };
+
+    // Helper to check if our hook already exists
+    const hookExists = (entries: HookEntry[] | undefined): boolean => {
+        if (!entries) {return false;}
+        return entries.some(entry =>
+            entry.hooks.some(h => h.command.includes('.claude-status'))
+        );
+    };
+
+    // Add Stop hook (fires when Claude finishes responding = waiting for user)
+    if (!settings.hooks.Stop) {
+        settings.hooks.Stop = [];
+    }
+    if (!hookExists(settings.hooks.Stop)) {
+        settings.hooks.Stop.push({
+            hooks: [statusWriteWaiting]
+        });
+    }
+
+    // Add UserPromptSubmit hook (fires when user submits = Claude starts working)
+    if (!settings.hooks.UserPromptSubmit) {
+        settings.hooks.UserPromptSubmit = [];
+    }
+    if (!hookExists(settings.hooks.UserPromptSubmit)) {
+        settings.hooks.UserPromptSubmit.push({
+            hooks: [statusWriteWorking]
+        });
+    }
+
+    // Write updated settings
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 }

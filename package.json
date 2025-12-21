@@ -47,6 +47,11 @@
       {
         "command": "claudeWorktrees.openSession",
         "title": "Open Session"
+      },
+      {
+        "command": "claudeWorktrees.setupStatusHooks",
+        "title": "Setup Status Hooks",
+        "icon": "$(gear)"
       }
     ],
     "menus": {
@@ -58,6 +63,11 @@
         }
       ],
       "view/item/context": [
+        {
+          "command": "claudeWorktrees.setupStatusHooks",
+          "when": "view == claudeSessionsView",
+          "group": "navigation"
+        },
         {
           "command": "claudeWorktrees.deleteSession",
           "when": "view == claudeSessionsView",

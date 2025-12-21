@@ -79,6 +79,59 @@ claude login
 - The worktree is removed and the terminal is killed
 - Your git branch remains intact for later merging
 
+### Session Status Indicators
+
+The sidebar can show visual status indicators for each session:
+
+| Status | Icon | Description |
+|--------|------|-------------|
+| Waiting | Bell (yellow) | Claude is waiting for user input |
+| Working | Sync (animated) | Claude is actively processing |
+| Error | Error (red) | An error occurred |
+| Idle | Git branch | Default/inactive state |
+
+**To enable status indicators:**
+
+1. Right-click on a session in the sidebar
+2. Select **"Setup Status Hooks"**
+3. This configures Claude hooks in the worktree
+
+The command merges with any existing hooks - it won't overwrite your configuration.
+
+<details>
+<summary>Manual Setup (Alternative)</summary>
+
+If you prefer to configure hooks manually, add this to `.claude/settings.json` in your worktree:
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"status\":\"waiting_for_user\"}' > .claude-status"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"status\":\"working\"}' > .claude-status"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+</details>
+
 ---
 
 ## 🔧 Commands
@@ -88,6 +141,7 @@ claude login
 | `Claude Orchestra: Create Session` | Create a new isolated session |
 | `Claude Orchestra: Open Session` | Open/focus an existing session's terminal |
 | `Claude Orchestra: Delete Session` | Remove a session's worktree and terminal |
+| `Claude Orchestra: Setup Status Hooks` | Configure Claude hooks for status indicators |
 
 ---
 
@@ -107,7 +161,7 @@ your-repo/
 
 ## 🛣️ Roadmap
 
-- [ ] Session status indicators (idle, working, completed)
+- [x] Session status indicators (idle, working, waiting)
 - [ ] Session descriptions and metadata
 - [ ] Merge assistant (review and merge session branches)
 - [ ] Session templates for common workflows

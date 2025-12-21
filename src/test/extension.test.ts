@@ -346,6 +346,7 @@ suite('Claude Orchestra Extension Test Suite', () => {
 			assert.ok(commands.includes('claudeWorktrees.createSession'), 'createSession command should exist');
 			assert.ok(commands.includes('claudeWorktrees.openSession'), 'openSession command should exist');
 			assert.ok(commands.includes('claudeWorktrees.deleteSession'), 'deleteSession command should exist');
+			assert.ok(commands.includes('claudeWorktrees.setupStatusHooks'), 'setupStatusHooks command should exist');
 		});
 	});
 
