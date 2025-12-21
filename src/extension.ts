@@ -22,6 +22,31 @@ export function activate(context: vscode.ExtensionContext) {
     const sessionProvider = new ClaudeSessionProvider(workspaceRoot);
     vscode.window.registerTreeDataProvider('claudeSessionsView', sessionProvider);
 
+    // Watch for .claude-status file changes to refresh the sidebar
+    if (workspaceRoot) {
+        const statusWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(workspaceRoot, '.worktrees/**/.claude-status')
+        );
+
+        // Refresh on any status file change
+        statusWatcher.onDidChange(() => sessionProvider.refresh());
+        statusWatcher.onDidCreate(() => sessionProvider.refresh());
+        statusWatcher.onDidDelete(() => sessionProvider.refresh());
+
+        context.subscriptions.push(statusWatcher);
+
+        // Also watch for features.json changes to refresh the sidebar
+        const featuresWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(workspaceRoot, '.worktrees/**/features.json')
+        );
+
+        featuresWatcher.onDidChange(() => sessionProvider.refresh());
+        featuresWatcher.onDidCreate(() => sessionProvider.refresh());
+        featuresWatcher.onDidDelete(() => sessionProvider.refresh());
+
+        context.subscriptions.push(featuresWatcher);
+    }
+
     // 2. Register CREATE Command
     let createDisposable = vscode.commands.registerCommand('claudeWorktrees.createSession', async () => {
         console.log("Create Session Command Triggered!"); // <--- LOOK FOR THIS

@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { ClaudeSessionProvider, SessionItem, getFeatureStatus, FeatureStatus } from '../ClaudeSessionProvider';
+import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, FeatureStatus, ClaudeStatus } from '../ClaudeSessionProvider';
 
 suite('Claude Orchestra Extension Test Suite', () => {
 
@@ -346,6 +346,261 @@ suite('Claude Orchestra Extension Test Suite', () => {
 			assert.ok(commands.includes('claudeWorktrees.createSession'), 'createSession command should exist');
 			assert.ok(commands.includes('claudeWorktrees.openSession'), 'openSession command should exist');
 			assert.ok(commands.includes('claudeWorktrees.deleteSession'), 'deleteSession command should exist');
+		});
+	});
+
+	suite('getClaudeStatus', () => {
+
+		test('should return correct status for valid waiting_for_user .claude-status file', () => {
+			// Arrange: Create a .claude-status file with waiting_for_user status
+			const statusData = { status: 'waiting_for_user' };
+			fs.writeFileSync(path.join(tempDir, '.claude-status'), JSON.stringify(statusData));
+
+			// Act
+			const result = getClaudeStatus(tempDir);
+
+			// Assert
+			assert.ok(result, 'Result should not be null');
+			assert.strictEqual(result.status, 'waiting_for_user');
+		});
+
+		test('should return correct status for valid working .claude-status file', () => {
+			// Arrange: Create a .claude-status file with working status
+			const statusData = { status: 'working' };
+			fs.writeFileSync(path.join(tempDir, '.claude-status'), JSON.stringify(statusData));
+
+			// Act
+			const result = getClaudeStatus(tempDir);
+
+			// Assert
+			assert.ok(result, 'Result should not be null');
+			assert.strictEqual(result.status, 'working');
+		});
+
+		test('should return null when .claude-status file does not exist', () => {
+			// Arrange: tempDir exists but has no .claude-status file
+
+			// Act
+			const result = getClaudeStatus(tempDir);
+
+			// Assert
+			assert.strictEqual(result, null);
+		});
+
+		test('should return null for invalid JSON in .claude-status', () => {
+			// Arrange: Create a .claude-status file with invalid JSON
+			fs.writeFileSync(path.join(tempDir, '.claude-status'), 'not valid json {{{');
+
+			// Act
+			const result = getClaudeStatus(tempDir);
+
+			// Assert
+			assert.strictEqual(result, null);
+		});
+
+		test('should return null when status field is not a valid value', () => {
+			// Arrange: Create a .claude-status file with invalid status value
+			const statusData = { status: 'invalid' };
+			fs.writeFileSync(path.join(tempDir, '.claude-status'), JSON.stringify(statusData));
+
+			// Act
+			const result = getClaudeStatus(tempDir);
+
+			// Assert
+			assert.strictEqual(result, null);
+		});
+
+		test('should correctly parse optional timestamp and message fields', () => {
+			// Arrange: Create a .claude-status file with all fields
+			const statusData = {
+				status: 'waiting_for_user',
+				timestamp: '2025-12-21T10:30:00Z',
+				message: 'Waiting for user confirmation'
+			};
+			fs.writeFileSync(path.join(tempDir, '.claude-status'), JSON.stringify(statusData));
+
+			// Act
+			const result = getClaudeStatus(tempDir);
+
+			// Assert
+			assert.ok(result, 'Result should not be null');
+			assert.strictEqual(result.status, 'waiting_for_user');
+			assert.strictEqual(result.timestamp, '2025-12-21T10:30:00Z');
+			assert.strictEqual(result.message, 'Waiting for user confirmation');
+		});
+	});
+
+	suite('SessionItem Visual Indicators', () => {
+
+		test('should display bell icon with yellow color for waiting_for_user status', () => {
+			// Arrange
+			const claudeStatus: ClaudeStatus = { status: 'waiting_for_user' };
+
+			// Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				undefined,
+				claudeStatus
+			);
+
+			// Assert
+			assert.ok(item.iconPath instanceof vscode.ThemeIcon);
+			const themeIcon = item.iconPath as vscode.ThemeIcon;
+			assert.strictEqual(themeIcon.id, 'bell');
+			assert.ok(themeIcon.color, 'Icon should have a color');
+		});
+
+		test('should display sync~spin icon for working status', () => {
+			// Arrange
+			const claudeStatus: ClaudeStatus = { status: 'working' };
+
+			// Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				undefined,
+				claudeStatus
+			);
+
+			// Assert
+			assert.ok(item.iconPath instanceof vscode.ThemeIcon);
+			const themeIcon = item.iconPath as vscode.ThemeIcon;
+			assert.strictEqual(themeIcon.id, 'sync~spin');
+		});
+
+		test('should display error icon with red color for error status', () => {
+			// Arrange
+			const claudeStatus: ClaudeStatus = { status: 'error' };
+
+			// Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				undefined,
+				claudeStatus
+			);
+
+			// Assert
+			assert.ok(item.iconPath instanceof vscode.ThemeIcon);
+			const themeIcon = item.iconPath as vscode.ThemeIcon;
+			assert.strictEqual(themeIcon.id, 'error');
+			assert.ok(themeIcon.color, 'Icon should have a color');
+		});
+
+		test('should display git-branch icon for idle status', () => {
+			// Arrange
+			const claudeStatus: ClaudeStatus = { status: 'idle' };
+
+			// Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				undefined,
+				claudeStatus
+			);
+
+			// Assert
+			assert.ok(item.iconPath instanceof vscode.ThemeIcon);
+			const themeIcon = item.iconPath as vscode.ThemeIcon;
+			assert.strictEqual(themeIcon.id, 'git-branch');
+		});
+
+		test('should display git-branch icon when claudeStatus is null', () => {
+			// Arrange & Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				undefined,
+				null
+			);
+
+			// Assert
+			assert.ok(item.iconPath instanceof vscode.ThemeIcon);
+			const themeIcon = item.iconPath as vscode.ThemeIcon;
+			assert.strictEqual(themeIcon.id, 'git-branch');
+		});
+
+		test('should display "Waiting for input" description for waiting_for_user status without feature', () => {
+			// Arrange
+			const claudeStatus: ClaudeStatus = { status: 'waiting_for_user' };
+
+			// Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				undefined,
+				claudeStatus
+			);
+
+			// Assert
+			assert.strictEqual(item.description, 'Waiting for input');
+		});
+
+		test('should display "Waiting - {feature-id}" for waiting_for_user status with current feature', () => {
+			// Arrange
+			const claudeStatus: ClaudeStatus = { status: 'waiting_for_user' };
+			const featureStatus: FeatureStatus = {
+				currentFeature: { id: 'feature-abc', description: 'Test feature', passes: false },
+				allComplete: false
+			};
+
+			// Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				featureStatus,
+				claudeStatus
+			);
+
+			// Assert
+			assert.strictEqual(item.description, 'Waiting - feature-abc');
+		});
+
+		test('should display "Working..." description for working status without feature', () => {
+			// Arrange
+			const claudeStatus: ClaudeStatus = { status: 'working' };
+
+			// Act
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				undefined,
+				claudeStatus
+			);
+
+			// Assert
+			assert.strictEqual(item.description, 'Working...');
+		});
+
+		test('should work correctly when claudeStatus is undefined (backwards compatibility)', () => {
+			// Arrange
+			const featureStatus: FeatureStatus = {
+				currentFeature: { id: 'legacy-feature', description: 'Legacy feature', passes: false },
+				allComplete: false
+			};
+
+			// Act: Note: claudeStatus parameter is not passed (undefined)
+			const item = new SessionItem(
+				'session',
+				'/path',
+				vscode.TreeItemCollapsibleState.None,
+				featureStatus
+			);
+
+			// Assert: Should behave as before - git-branch icon and feature-based description
+			assert.ok(item.iconPath instanceof vscode.ThemeIcon);
+			const themeIcon = item.iconPath as vscode.ThemeIcon;
+			assert.strictEqual(themeIcon.id, 'git-branch');
+			assert.strictEqual(item.description, 'legacy-feature');
 		});
 	});
 });
