@@ -7,7 +7,7 @@ import { ClaudeSessionProvider, SessionItem } from './ClaudeSessionProvider'; //
 const WORKTREE_FOLDER = '.worktrees';
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Congratulations, "Claude Orchestra" is now active!'); // Check Debug Console for this
+    console.log('Congratulations, "Claude Lanes" is now active!'); // Check Debug Console for this
 
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     

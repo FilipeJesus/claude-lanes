@@ -1,8 +1,8 @@
-# 🤖 Claude Orchestra
+# 🛣️ Claude Lanes
 
 **Manage multiple, isolated Claude Code sessions directly inside VS Code.**
 
-Claude Orchestra is a VS Code extension that helps you parallelize your AI coding workflows. It uses **Git Worktrees** to give every agent session its own isolated file system and **Dedicated Terminals** to manage their lifecycle.
+Claude Lanes is a VS Code extension that helps you parallelize your AI coding workflows. It uses **Git Worktrees** to give every agent session its own isolated file system and **Dedicated Terminals** to manage their lifecycle.
 
 No more context contamination. No more half-finished files clashing with each other.
 
@@ -100,10 +100,10 @@ The sidebar shows visual status indicators for each session:
 
 | Command | Description |
 |---------|-------------|
-| `Claude Orchestra: Create Session` | Create a new isolated session |
-| `Claude Orchestra: Open Session` | Open/focus an existing session's terminal |
-| `Claude Orchestra: Delete Session` | Remove a session's worktree and terminal |
-| `Claude Orchestra: Setup Status Hooks` | Configure Claude hooks for status indicators |
+| `Claude Lanes: Create Session` | Create a new isolated session |
+| `Claude Lanes: Open Session` | Open/focus an existing session's terminal |
+| `Claude Lanes: Delete Session` | Remove a session's worktree and terminal |
+| `Claude Lanes: Setup Status Hooks` | Configure Claude hooks for status indicators |
 
 ---
 

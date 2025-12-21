@@ -21,7 +21,7 @@ Use this agent when:
 Create the progress tracking file:
 
 ```markdown
-# Claude Orchestra - Development Progress
+# Claude Lanes - Development Progress
 
 ## Session: [Current Date]
 

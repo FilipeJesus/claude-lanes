@@ -1,8 +1,8 @@
 {
-  "name": "claude-orchestra",
-  "displayName": "Claude Orchestra",
-  "publisher": "claude-orchestra",
-  "description": "Manage Claude Code sessions via Git Worktrees",
+  "name": "claude-lanes",
+  "displayName": "Claude Lanes",
+  "publisher": "claude-lanes",
+  "description": "Manage parallel Claude Code sessions via Git Worktrees",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.75.0"
@@ -20,7 +20,7 @@
       "activitybar": [
         {
           "id": "claude-orchestra-sidebar",
-          "title": "Claude Orchestra",
+          "title": "Claude Lanes",
           "icon": "$(robot)"
         }
       ]

@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, FeatureStatus, ClaudeStatus } from '../ClaudeSessionProvider';
 
-suite('Claude Orchestra Extension Test Suite', () => {
+suite('Claude Lanes Extension Test Suite', () => {
 
 	let tempDir: string;
 	let worktreesDir: string;
