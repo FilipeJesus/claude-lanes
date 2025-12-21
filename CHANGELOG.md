@@ -5,6 +5,20 @@ All notable changes to the Claude Lanes extension will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Custom extension icon for marketplace and extension views
+- Custom sidebar icon (circuit tree design) that adapts to VS Code themes
+
+## [0.3.1] - 2025-12-21
+
+### Fixed
+
+- Remove redundant activation events
+- Add icons to tree views
+
 ## [0.3.0] - 2025-12-21
 
 ### Added
