@@ -880,6 +880,133 @@ suite('Claude Lanes Extension Test Suite', () => {
 				'Webview should have scripts enabled'
 			);
 		});
+
+		// Implement Claude Harness Button Tests
+		test('should render HTML with Implement Claude Harness button', () => {
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, capturedHtml } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			// Assert
+			assert.ok(
+				capturedHtml.value.includes('Implement Claude Harness'),
+				'HTML should contain button with text "Implement Claude Harness"'
+			);
+			assert.ok(
+				capturedHtml.value.includes('id="harnessBtn"'),
+				'HTML should contain button with id="harnessBtn"'
+			);
+		});
+
+		test('should have harness button click handler that populates promptInput.value', () => {
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, capturedHtml } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			// Assert: Verify the JavaScript sets promptInput.value to harnessPrompt
+			assert.ok(
+				capturedHtml.value.includes("harnessBtn.addEventListener('click'"),
+				'HTML should have click event listener on harnessBtn'
+			);
+			assert.ok(
+				capturedHtml.value.includes('promptInput.value = harnessPrompt'),
+				'Click handler should set promptInput.value to harnessPrompt'
+			);
+			assert.ok(
+				capturedHtml.value.includes('const harnessPrompt ='),
+				'HTML should define harnessPrompt constant with predefined content'
+			);
+		});
+
+		test('should have harness button click handler that populates acceptanceCriteriaInput.value', () => {
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, capturedHtml } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			// Assert: Verify the JavaScript sets acceptanceCriteriaInput.value to harnessAcceptanceCriteria
+			assert.ok(
+				capturedHtml.value.includes('acceptanceCriteriaInput.value = harnessAcceptanceCriteria'),
+				'Click handler should set acceptanceCriteriaInput.value to harnessAcceptanceCriteria'
+			);
+			assert.ok(
+				capturedHtml.value.includes('const harnessAcceptanceCriteria ='),
+				'HTML should define harnessAcceptanceCriteria constant with predefined content'
+			);
+		});
+
+		test('should have harness button click handler that does NOT modify nameInput.value', () => {
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, capturedHtml } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			// Assert: Extract the click handler code block
+			const clickHandlerMatch = capturedHtml.value.match(/harnessBtn\.addEventListener\('click',\s*\(\)\s*=>\s*\{([^}]+)\}/);
+			assert.ok(clickHandlerMatch, 'Should find harness button click handler');
+
+			const handlerBody = clickHandlerMatch[1];
+
+			// Verify nameInput.value is NOT assigned in the handler
+			assert.ok(
+				!handlerBody.includes('nameInput.value ='),
+				'Click handler should NOT modify nameInput.value'
+			);
+		});
+
+		test('should have harness button with type="button" to prevent form submission', () => {
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, capturedHtml } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			// Assert: The harness button should have type="button" (not "submit")
+			// This prevents it from triggering form submission
+			const harnessButtonMatch = capturedHtml.value.match(/<button[^>]*id="harnessBtn"[^>]*>/);
+			assert.ok(harnessButtonMatch, 'Should find harness button element');
+
+			const buttonTag = harnessButtonMatch[0];
+			assert.ok(
+				buttonTag.includes('type="button"'),
+				'Harness button should have type="button" to prevent form submission'
+			);
+			assert.ok(
+				!buttonTag.includes('type="submit"'),
+				'Harness button should NOT have type="submit"'
+			);
+
+			// Also verify the click handler does NOT call vscode.postMessage with createSession
+			const clickHandlerMatch = capturedHtml.value.match(/harnessBtn\.addEventListener\('click',\s*\(\)\s*=>\s*\{([^}]+)\}/);
+			assert.ok(clickHandlerMatch, 'Should find harness button click handler');
+
+			const handlerBody = clickHandlerMatch[1];
+			assert.ok(
+				!handlerBody.includes('vscode.postMessage'),
+				'Click handler should NOT call vscode.postMessage (would trigger form submission)'
+			);
+		});
 	});
 
 	suite('Session ID Tracking', () => {

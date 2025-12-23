@@ -162,6 +162,18 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             cursor: not-allowed;
         }
 
+        .button-secondary {
+            background-color: transparent;
+            color: var(--vscode-textLink-foreground);
+            border: 1px solid var(--vscode-textLink-foreground);
+            margin-bottom: 8px;
+        }
+
+        .button-secondary:hover {
+            background-color: var(--vscode-textLink-foreground);
+            color: var(--vscode-editor-background);
+        }
+
         .hint {
             font-size: 11px;
             color: var(--vscode-descriptionForeground);
@@ -204,6 +216,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             <div class="hint">Criteria for Claude to meet</div>
         </div>
 
+        <button type="button" id="harnessBtn" class="button-secondary">Implement Claude Harness</button>
         <button type="submit" id="submitBtn">Create Session</button>
     </form>
 
@@ -213,6 +226,67 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         const nameInput = document.getElementById('name');
         const promptInput = document.getElementById('prompt');
         const acceptanceCriteriaInput = document.getElementById('acceptanceCriteria');
+        const harnessBtn = document.getElementById('harnessBtn');
+
+        // Predefined content for Claude Harness implementation
+        const harnessPrompt = \`I want you to implement a Claude Harness in this repository. A Claude Harness is a structured approach to task management that helps Claude maintain continuity across sessions.
+
+Please add the following harness instructions to the CLAUDE.md file in the repository root (create it if it doesn't exist):
+
+## Task Planning
+
+When starting a new task, create a \\\`features.json\\\` file to track all features:
+
+\\\`\\\`\\\`json
+{
+  "features": [
+    {
+      "id": "unique-feature-id",
+      "description": "What needs to be implemented",
+      "passes": false
+    }
+  ]
+}
+\\\`\\\`\\\`
+
+### Rules:
+- Break down the user's request into discrete, testable features
+- All features start with \\\`passes: false\\\`
+- Work on one feature at a time
+- Only set \\\`passes: true\\\` after the feature is fully implemented and tested
+- Commit changes after completing each feature
+- Delete \\\`features.json\\\` when the task is complete
+
+### Progress Tracking
+
+Also add a section for maintaining a progress file:
+
+For better continuity across sessions, maintain a \\\`claude-progress.txt\\\` file that you update at the end of each session:
+
+\\\`\\\`\\\`
+## Session: [Date]
+
+### Completed
+- [What was accomplished]
+
+### Next Steps
+- [What should be done next]
+\\\`\\\`\\\`
+
+This gives new sessions immediate context about what's been accomplished.\`;
+
+        const harnessAcceptanceCriteria = \`* CLAUDE.md file exists in repository root with harness instructions
+* CLAUDE.md contains Task Planning section with features.json schema
+* CLAUDE.md contains Rules section explaining workflow
+* CLAUDE.md contains Progress Tracking section explaining claude-progress.txt
+* features.json schema includes required fields: features array with id, description, passes\`;
+
+        // Handle harness button click - populates prompt and acceptance criteria
+        harnessBtn.addEventListener('click', () => {
+            promptInput.value = harnessPrompt;
+            acceptanceCriteriaInput.value = harnessAcceptanceCriteria;
+            saveState();
+        });
 
         // Restore saved state when webview is recreated
         const previousState = vscode.getState();
