@@ -2188,17 +2188,16 @@ suite('Claude Lanes Extension Test Suite', () => {
 		// - Multiple test-* branches (test-1, test-2, etc.)
 		// - At least one worktree at .worktrees/test-16
 
-		// Get the path to the main repository (parent of the worktree)
-		// __dirname is src/test, so we go up to the worktree root, then to the main repo
-		const worktreeRoot = path.resolve(__dirname, '..', '..');
-		const mainRepoRoot = path.resolve(worktreeRoot, '..', '..');
+		// Get the path to the git repository root
+		// __dirname is out/test (compiled), so we go up twice to reach the project root
+		// This works whether running from the main repo or from a worktree
+		const repoRoot = path.resolve(__dirname, '..', '..');
 
 		test('branchExists should return true for an existing branch', async () => {
 			// Arrange: The 'main' branch should always exist in any git repository
-			// We use the main repository root where the actual git repository is
 
 			// Act
-			const result = await branchExists(mainRepoRoot, 'main');
+			const result = await branchExists(repoRoot, 'main');
 
 			// Assert
 			assert.strictEqual(result, true, 'branchExists should return true for "main" branch which exists');
@@ -2209,7 +2208,7 @@ suite('Claude Lanes Extension Test Suite', () => {
 			const nonExistentBranch = 'nonexistent-branch-that-does-not-exist-xyz-123456789';
 
 			// Act
-			const result = await branchExists(mainRepoRoot, nonExistentBranch);
+			const result = await branchExists(repoRoot, nonExistentBranch);
 
 			// Assert
 			assert.strictEqual(result, false, 'branchExists should return false for a branch that does not exist');
@@ -2219,7 +2218,7 @@ suite('Claude Lanes Extension Test Suite', () => {
 			// Arrange: The repository has at least one worktree that we are running in
 
 			// Act
-			const result = await getBranchesInWorktrees(mainRepoRoot);
+			const result = await getBranchesInWorktrees(repoRoot);
 
 			// Assert: The result should be a Set
 			assert.ok(result instanceof Set, 'getBranchesInWorktrees should return a Set');
