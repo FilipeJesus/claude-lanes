@@ -7,3 +7,4 @@ node_modules
 # Ephemeral task tracking files (created per Claude session, deleted when done)
 features.json
 tests.json
+.claude/lanes
