@@ -274,8 +274,91 @@ async function createSession(
 
         await ensureWorktreeDirExists(workspaceRoot);
 
+        // Check if the branch already exists
+        const branchAlreadyExists = await branchExists(workspaceRoot, trimmedName);
+        let gitCmd: string;
+
+        if (branchAlreadyExists) {
+            // Check if the branch is already in use by another worktree
+            const branchesInUse = await getBranchesInWorktrees(workspaceRoot);
+
+            if (branchesInUse.has(trimmedName)) {
+                // Branch is already checked out in another worktree - cannot use it
+                vscode.window.showErrorMessage(
+                    `Branch '${trimmedName}' is already checked out in another worktree. ` +
+                    `Git does not allow the same branch to be checked out in multiple worktrees.`
+                );
+                return;
+            }
+
+            // Branch exists but is not in use - prompt user for action
+            const choice = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: 'Use existing branch',
+                        description: `Create worktree using the existing '${trimmedName}' branch`,
+                        action: 'use-existing'
+                    },
+                    {
+                        label: 'Enter new name',
+                        description: 'Choose a different session name',
+                        action: 'new-name'
+                    }
+                ],
+                {
+                    placeHolder: `Branch '${trimmedName}' already exists. What would you like to do?`,
+                    title: 'Branch Already Exists'
+                }
+            );
+
+            if (!choice) {
+                // User cancelled
+                vscode.window.showInformationMessage('Session creation cancelled.');
+                return;
+            }
+
+            if (choice.action === 'new-name') {
+                // Prompt for new name and recursively call createSession
+                const newName = await vscode.window.showInputBox({
+                    prompt: "Enter a new session name (creates new branch)",
+                    placeHolder: "fix-login-v2",
+                    validateInput: (value) => {
+                        if (!value || !value.trim()) {
+                            return 'Session name is required';
+                        }
+                        const trimmed = value.trim();
+                        const branchNameRegex = /^[a-zA-Z0-9_\-./]+$/;
+                        if (!branchNameRegex.test(trimmed)) {
+                            return 'Use only letters, numbers, hyphens, underscores, dots, or slashes';
+                        }
+                        // Prevent names that could cause git issues
+                        if (trimmed.startsWith('-') || trimmed.startsWith('.') ||
+                            trimmed.endsWith('.') || trimmed.includes('..') ||
+                            trimmed.endsWith('.lock')) {
+                            return "Name cannot start with '-' or '.', end with '.' or '.lock', or contain '..'";
+                        }
+                        return null;
+                    }
+                });
+
+                if (!newName) {
+                    vscode.window.showInformationMessage('Session creation cancelled.');
+                    return;
+                }
+
+                // Recursively create session with new name
+                await createSession(newName, prompt, acceptanceCriteria, workspaceRoot, sessionProvider);
+                return;
+            }
+
+            // User chose to use existing branch - create worktree without -b flag
+            gitCmd = `git worktree add "${worktreePath}" "${trimmedName}"`;
+        } else {
+            // Branch doesn't exist - create new branch
+            gitCmd = `git worktree add "${worktreePath}" -b "${trimmedName}"`;
+        }
+
         // Log the command we are about to run
-        const gitCmd = `git worktree add "${worktreePath}" -b "${trimmedName}"`;
         console.log(`Running: ${gitCmd}`);
 
         await execShell(gitCmd, workspaceRoot);
@@ -369,6 +452,55 @@ function execShell(cmd: string, cwd: string): Promise<string> {
             resolve(stdout);
         });
     });
+}
+
+/**
+ * Check if a branch exists in the git repository.
+ * @param cwd The working directory (git repo root)
+ * @param branchName The name of the branch to check
+ * @returns true if the branch exists, false otherwise
+ * @note Returns false for invalid branch names or on any git command failure
+ */
+export async function branchExists(cwd: string, branchName: string): Promise<boolean> {
+    // Validate branch name to prevent command injection
+    const branchNameRegex = /^[a-zA-Z0-9_\-./]+$/;
+    if (!branchNameRegex.test(branchName)) {
+        return false;
+    }
+    try {
+        await execShell(`git show-ref --verify --quiet "refs/heads/${branchName}"`, cwd);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Get a set of branch names that are currently checked out in worktrees.
+ * Parses the output of `git worktree list --porcelain`.
+ * @param cwd The working directory (git repo root)
+ * @returns A Set of branch names currently in use by worktrees
+ */
+export async function getBranchesInWorktrees(cwd: string): Promise<Set<string>> {
+    const branches = new Set<string>();
+    try {
+        const output = await execShell('git worktree list --porcelain', cwd);
+        // Parse the porcelain output - each worktree is separated by blank lines
+        // and branch info is in "branch refs/heads/<branch-name>" format
+        const lines = output.split('\n');
+        for (const line of lines) {
+            if (line.startsWith('branch refs/heads/')) {
+                const branchName = line.replace('branch refs/heads/', '').trim();
+                if (branchName) {
+                    branches.add(branchName);
+                }
+            }
+        }
+    } catch (error) {
+        // Log error for debugging but return empty set to allow graceful degradation
+        console.warn('Failed to get worktree branches:', error);
+    }
+    return branches;
 }
 
 function ensureWorktreeDirExists(root: string) {
