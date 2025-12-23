@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, getSessionId, FeatureStatus, ClaudeStatus, ClaudeSessionData, getFeaturesJsonPath, getTestsJsonPath, getClaudeSessionPath, getClaudeStatusPath } from '../ClaudeSessionProvider';
 import { SessionFormProvider } from '../SessionFormProvider';
-import { combinePromptAndCriteria } from '../extension';
+import { combinePromptAndCriteria, branchExists, getBranchesInWorktrees } from '../extension';
 
 suite('Claude Lanes Extension Test Suite', () => {
 
@@ -2178,6 +2178,78 @@ suite('Claude Lanes Extension Test Suite', () => {
 				'',
 				'claudeStatusPath should have default value of empty string'
 			);
+		});
+	});
+
+	suite('Branch Handling', () => {
+		// These tests use the actual git repository since branchExists and getBranchesInWorktrees
+		// are real git operations. The test repository has:
+		// - A 'main' branch
+		// - Multiple test-* branches (test-1, test-2, etc.)
+		// - At least one worktree at .worktrees/test-16
+
+		// Get the path to the main repository (parent of the worktree)
+		// __dirname is src/test, so we go up to the worktree root, then to the main repo
+		const worktreeRoot = path.resolve(__dirname, '..', '..');
+		const mainRepoRoot = path.resolve(worktreeRoot, '..', '..');
+
+		test('branchExists should return true for an existing branch', async () => {
+			// Arrange: The 'main' branch should always exist in any git repository
+			// We use the main repository root where the actual git repository is
+
+			// Act
+			const result = await branchExists(mainRepoRoot, 'main');
+
+			// Assert
+			assert.strictEqual(result, true, 'branchExists should return true for "main" branch which exists');
+		});
+
+		test('branchExists should return false for a non-existent branch', async () => {
+			// Arrange: Use a branch name that definitely does not exist
+			const nonExistentBranch = 'nonexistent-branch-that-does-not-exist-xyz-123456789';
+
+			// Act
+			const result = await branchExists(mainRepoRoot, nonExistentBranch);
+
+			// Assert
+			assert.strictEqual(result, false, 'branchExists should return false for a branch that does not exist');
+		});
+
+		test('getBranchesInWorktrees should correctly parse worktree list output', async () => {
+			// Arrange: The repository has at least one worktree that we are running in
+
+			// Act
+			const result = await getBranchesInWorktrees(mainRepoRoot);
+
+			// Assert: The result should be a Set
+			assert.ok(result instanceof Set, 'getBranchesInWorktrees should return a Set');
+
+			// Assert: The Set should contain at least one branch (main worktree)
+			// Since we are in a worktree, at least one branch should be in use
+			assert.ok(result.size > 0, 'getBranchesInWorktrees should return at least one branch for repository with worktrees');
+
+			// Assert: The main worktree should have 'main' branch checked out
+			assert.ok(result.has('main'), 'The main worktree should have "main" branch checked out');
+
+			// Note: We don't assert on the specific worktree branch name as tests may run in different contexts
+		});
+
+		test('getBranchesInWorktrees should return empty set when no worktrees have branches', async () => {
+			// Arrange: Create a temporary directory that is NOT a git repository
+			// This will cause the git command to fail, returning an empty set
+			const tempNonGitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'non-git-dir-'));
+
+			try {
+				// Act
+				const result = await getBranchesInWorktrees(tempNonGitDir);
+
+				// Assert: Should return an empty Set for a non-git directory
+				assert.ok(result instanceof Set, 'getBranchesInWorktrees should return a Set');
+				assert.strictEqual(result.size, 0, 'getBranchesInWorktrees should return empty Set for non-git directory');
+			} finally {
+				// Cleanup
+				fs.rmSync(tempNonGitDir, { recursive: true, force: true });
+			}
 		});
 	});
 });
