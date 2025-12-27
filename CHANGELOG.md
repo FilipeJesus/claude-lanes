@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0] - 2025-12-27
+
+### Changed
+
+- Convert synchronous file operations to async for better performance
+- Use atomic writes to prevent race conditions in settings file
+- Convert recursive session creation to iterative approach
+- Improve error handling with proper type safety
+
+### Added
+
+- `deactivate()` export for extension cleanup
+- Proper `Disposable` implementation for `ClaudeSessionProvider`
+- `jq` dependency documentation in README
+- 26 new edge case tests for improved reliability:
+  - Long session names (filesystem limits)
+  - Session name validation edge cases
+  - Session ID edge cases (injection prevention)
+  - Claude status edge cases
+  - Features.json edge cases
+  - Path configuration edge cases
+  - Concurrent operations
+
 ## [0.4.1] - 2025-12-23
 
 ### Changed
