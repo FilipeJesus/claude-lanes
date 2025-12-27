@@ -1,9 +1,17 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as cp from 'child_process';
 import { ClaudeSessionProvider, SessionItem, getSessionId } from './ClaudeSessionProvider';
 import { SessionFormProvider } from './SessionFormProvider';
+
+/**
+ * Helper to get error message from unknown error type
+ */
+function getErrorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
 
 const WORKTREE_FOLDER = '.worktrees';
 
@@ -83,6 +91,7 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize Tree Data Provider
     const sessionProvider = new ClaudeSessionProvider(workspaceRoot);
     vscode.window.registerTreeDataProvider('claudeSessionsView', sessionProvider);
+    context.subscriptions.push(sessionProvider);
 
     // Initialize Session Form Provider (webview in sidebar)
     const sessionFormProvider = new SessionFormProvider(context.extensionUri);
@@ -154,8 +163,8 @@ export function activate(context: vscode.ExtensionContext) {
     });
 
     // 3. Register OPEN/RESUME Command
-    let openDisposable = vscode.commands.registerCommand('claudeWorktrees.openSession', (item: SessionItem) => {
-        openClaudeTerminal(item.label, item.worktreePath);
+    let openDisposable = vscode.commands.registerCommand('claudeWorktrees.openSession', async (item: SessionItem) => {
+        await openClaudeTerminal(item.label, item.worktreePath);
     });
 
     // ---------------------------------------------------------
@@ -191,8 +200,8 @@ export function activate(context: vscode.ExtensionContext) {
             sessionProvider.refresh();
             vscode.window.showInformationMessage(`Deleted session: ${item.label}`);
 
-        } catch (err: any) {
-            vscode.window.showErrorMessage(`Failed to delete: ${err.message}`);
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to delete: ${getErrorMessage(err)}`);
         }
     });
 
@@ -205,8 +214,8 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             await setupStatusHooks(item.worktreePath);
             vscode.window.showInformationMessage(`Status hooks configured for '${item.label}'`);
-        } catch (err: any) {
-            vscode.window.showErrorMessage(`Failed to setup hooks: ${err.message}`);
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to setup hooks: ${getErrorMessage(err)}`);
         }
     });
 
@@ -219,6 +228,7 @@ export function activate(context: vscode.ExtensionContext) {
 /**
  * Creates a new Claude session with optional starting prompt and acceptance criteria.
  * Shared logic between the form-based UI and the command palette.
+ * Uses iterative approach to handle name conflicts instead of recursion.
  */
 async function createSession(
     name: string,
@@ -235,145 +245,153 @@ async function createSession(
         return;
     }
 
-    // 2. Validate name
-    if (!name || !name.trim()) {
-        vscode.window.showErrorMessage("Error: Session name is required!");
-        return;
-    }
-
-    const trimmedName = name.trim();
-
-    // 2b. Validate branch name characters (git-safe)
-    const branchNameRegex = /^[a-zA-Z0-9_\-./]+$/;
-    if (!branchNameRegex.test(trimmedName)) {
-        vscode.window.showErrorMessage("Error: Session name contains invalid characters. Use only letters, numbers, hyphens, underscores, dots, or slashes.");
-        return;
-    }
-
-    // 2c. Prevent names that could cause git issues
-    if (trimmedName.startsWith('-') || trimmedName.startsWith('.') ||
-        trimmedName.endsWith('.') || trimmedName.includes('..') ||
-        trimmedName.endsWith('.lock')) {
-        vscode.window.showErrorMessage("Error: Session name cannot start with '-' or '.', end with '.' or '.lock', or contain '..'");
-        return;
-    }
-
-    // 3. Check Git Status
+    // 3. Check Git Status (do this once before the loop)
     const isGit = fs.existsSync(path.join(workspaceRoot, '.git'));
     if (!isGit) {
         vscode.window.showErrorMessage("Error: Current folder is not a git repository. Run 'git init' first.");
         return;
     }
 
-    const worktreePath = path.join(workspaceRoot, '.worktrees', trimmedName);
-    console.log(`Target path: ${worktreePath}`);
+    // Use iterative approach to handle name conflicts
+    let currentName = name;
+    const branchNameRegex = /^[a-zA-Z0-9_\-./]+$/;
 
-    try {
-        // 4. Create Worktree
-        vscode.window.showInformationMessage(`Creating session '${trimmedName}'...`);
+    while (true) {
+        // 2. Validate name
+        if (!currentName || !currentName.trim()) {
+            vscode.window.showErrorMessage("Error: Session name is required!");
+            return;
+        }
 
-        await ensureWorktreeDirExists(workspaceRoot);
+        const trimmedName = currentName.trim();
 
-        // Check if the branch already exists
-        const branchAlreadyExists = await branchExists(workspaceRoot, trimmedName);
-        let gitCmd: string;
+        // 2b. Validate branch name characters (git-safe)
+        if (!branchNameRegex.test(trimmedName)) {
+            vscode.window.showErrorMessage("Error: Session name contains invalid characters. Use only letters, numbers, hyphens, underscores, dots, or slashes.");
+            return;
+        }
 
-        if (branchAlreadyExists) {
-            // Check if the branch is already in use by another worktree
-            const branchesInUse = await getBranchesInWorktrees(workspaceRoot);
+        // 2c. Prevent names that could cause git issues
+        if (trimmedName.startsWith('-') || trimmedName.startsWith('.') ||
+            trimmedName.endsWith('.') || trimmedName.includes('..') ||
+            trimmedName.endsWith('.lock')) {
+            vscode.window.showErrorMessage("Error: Session name cannot start with '-' or '.', end with '.' or '.lock', or contain '..'");
+            return;
+        }
 
-            if (branchesInUse.has(trimmedName)) {
-                // Branch is already checked out in another worktree - cannot use it
-                vscode.window.showErrorMessage(
-                    `Branch '${trimmedName}' is already checked out in another worktree. ` +
-                    `Git does not allow the same branch to be checked out in multiple worktrees.`
-                );
-                return;
-            }
+        const worktreePath = path.join(workspaceRoot, '.worktrees', trimmedName);
+        console.log(`Target path: ${worktreePath}`);
 
-            // Branch exists but is not in use - prompt user for action
-            const choice = await vscode.window.showQuickPick(
-                [
-                    {
-                        label: 'Use existing branch',
-                        description: `Create worktree using the existing '${trimmedName}' branch`,
-                        action: 'use-existing'
-                    },
-                    {
-                        label: 'Enter new name',
-                        description: 'Choose a different session name',
-                        action: 'new-name'
-                    }
-                ],
-                {
-                    placeHolder: `Branch '${trimmedName}' already exists. What would you like to do?`,
-                    title: 'Branch Already Exists'
+        try {
+            // 4. Create Worktree
+            vscode.window.showInformationMessage(`Creating session '${trimmedName}'...`);
+
+            await ensureWorktreeDirExists(workspaceRoot);
+
+            // Check if the branch already exists
+            const branchAlreadyExists = await branchExists(workspaceRoot, trimmedName);
+            let gitCmd: string;
+
+            if (branchAlreadyExists) {
+                // Check if the branch is already in use by another worktree
+                const branchesInUse = await getBranchesInWorktrees(workspaceRoot);
+
+                if (branchesInUse.has(trimmedName)) {
+                    // Branch is already checked out in another worktree - cannot use it
+                    vscode.window.showErrorMessage(
+                        `Branch '${trimmedName}' is already checked out in another worktree. ` +
+                        `Git does not allow the same branch to be checked out in multiple worktrees.`
+                    );
+                    return;
                 }
-            );
 
-            if (!choice) {
-                // User cancelled
-                vscode.window.showInformationMessage('Session creation cancelled.');
-                return;
-            }
-
-            if (choice.action === 'new-name') {
-                // Prompt for new name and recursively call createSession
-                const newName = await vscode.window.showInputBox({
-                    prompt: "Enter a new session name (creates new branch)",
-                    placeHolder: "fix-login-v2",
-                    validateInput: (value) => {
-                        if (!value || !value.trim()) {
-                            return 'Session name is required';
+                // Branch exists but is not in use - prompt user for action
+                const choice = await vscode.window.showQuickPick(
+                    [
+                        {
+                            label: 'Use existing branch',
+                            description: `Create worktree using the existing '${trimmedName}' branch`,
+                            action: 'use-existing'
+                        },
+                        {
+                            label: 'Enter new name',
+                            description: 'Choose a different session name',
+                            action: 'new-name'
                         }
-                        const trimmed = value.trim();
-                        const branchNameRegex = /^[a-zA-Z0-9_\-./]+$/;
-                        if (!branchNameRegex.test(trimmed)) {
-                            return 'Use only letters, numbers, hyphens, underscores, dots, or slashes';
-                        }
-                        // Prevent names that could cause git issues
-                        if (trimmed.startsWith('-') || trimmed.startsWith('.') ||
-                            trimmed.endsWith('.') || trimmed.includes('..') ||
-                            trimmed.endsWith('.lock')) {
-                            return "Name cannot start with '-' or '.', end with '.' or '.lock', or contain '..'";
-                        }
-                        return null;
+                    ],
+                    {
+                        placeHolder: `Branch '${trimmedName}' already exists. What would you like to do?`,
+                        title: 'Branch Already Exists'
                     }
-                });
+                );
 
-                if (!newName) {
+                if (!choice) {
+                    // User cancelled
                     vscode.window.showInformationMessage('Session creation cancelled.');
                     return;
                 }
 
-                // Recursively create session with new name
-                await createSession(newName, prompt, acceptanceCriteria, workspaceRoot, sessionProvider);
-                return;
+                if (choice.action === 'new-name') {
+                    // Prompt for new name and continue the loop
+                    const newName = await vscode.window.showInputBox({
+                        prompt: "Enter a new session name (creates new branch)",
+                        placeHolder: "fix-login-v2",
+                        validateInput: (value) => {
+                            if (!value || !value.trim()) {
+                                return 'Session name is required';
+                            }
+                            const trimmed = value.trim();
+                            if (!branchNameRegex.test(trimmed)) {
+                                return 'Use only letters, numbers, hyphens, underscores, dots, or slashes';
+                            }
+                            // Prevent names that could cause git issues
+                            if (trimmed.startsWith('-') || trimmed.startsWith('.') ||
+                                trimmed.endsWith('.') || trimmed.includes('..') ||
+                                trimmed.endsWith('.lock')) {
+                                return "Name cannot start with '-' or '.', end with '.' or '.lock', or contain '..'";
+                            }
+                            return null;
+                        }
+                    });
+
+                    if (!newName) {
+                        vscode.window.showInformationMessage('Session creation cancelled.');
+                        return;
+                    }
+
+                    // Update currentName and continue the loop (iterative instead of recursive)
+                    currentName = newName;
+                    continue;
+                }
+
+                // User chose to use existing branch - create worktree without -b flag
+                gitCmd = `git worktree add "${worktreePath}" "${trimmedName}"`;
+            } else {
+                // Branch doesn't exist - create new branch
+                gitCmd = `git worktree add "${worktreePath}" -b "${trimmedName}"`;
             }
 
-            // User chose to use existing branch - create worktree without -b flag
-            gitCmd = `git worktree add "${worktreePath}" "${trimmedName}"`;
-        } else {
-            // Branch doesn't exist - create new branch
-            gitCmd = `git worktree add "${worktreePath}" -b "${trimmedName}"`;
+            // Log the command we are about to run
+            console.log(`Running: ${gitCmd}`);
+
+            await execShell(gitCmd, workspaceRoot);
+
+            // 5. Setup status hooks before opening Claude
+            await setupStatusHooks(worktreePath);
+
+            // 6. Success
+            sessionProvider.refresh();
+            await openClaudeTerminal(trimmedName, worktreePath, prompt, acceptanceCriteria);
+            vscode.window.showInformationMessage(`Session '${trimmedName}' Ready!`);
+
+            // Exit the loop on success
+            return;
+
+        } catch (err) {
+            console.error(err);
+            vscode.window.showErrorMessage(`Git Error: ${getErrorMessage(err)}`);
+            return;
         }
-
-        // Log the command we are about to run
-        console.log(`Running: ${gitCmd}`);
-
-        await execShell(gitCmd, workspaceRoot);
-
-        // 5. Setup status hooks before opening Claude
-        await setupStatusHooks(worktreePath);
-
-        // 6. Success
-        sessionProvider.refresh();
-        openClaudeTerminal(trimmedName, worktreePath, prompt, acceptanceCriteria);
-        vscode.window.showInformationMessage(`Session '${trimmedName}' Ready!`);
-
-    } catch (err: any) {
-        console.error(err);
-        vscode.window.showErrorMessage(`Git Error: ${err.message}`);
     }
 }
 
@@ -398,7 +416,7 @@ export function combinePromptAndCriteria(prompt?: string, acceptanceCriteria?: s
 }
 
 // THE CORE FUNCTION: Manages the Terminal Tabs
-function openClaudeTerminal(taskName: string, worktreePath: string, prompt?: string, acceptanceCriteria?: string) {
+async function openClaudeTerminal(taskName: string, worktreePath: string, prompt?: string, acceptanceCriteria?: string): Promise<void> {
     const terminalName = `Claude: ${taskName}`;
 
     // A. Check if this terminal already exists to avoid duplicates
@@ -436,11 +454,9 @@ function openClaudeTerminal(taskName: string, worktreePath: string, prompt?: str
             // Derive repo root from worktree path: <repo>/.worktrees/<session-name>
             const repoRoot = path.dirname(path.dirname(worktreePath));
             const lanesDir = path.join(repoRoot, '.claude', 'lanes');
-            if (!fs.existsSync(lanesDir)) {
-                fs.mkdirSync(lanesDir, { recursive: true });
-            }
+            await fsPromises.mkdir(lanesDir, { recursive: true });
             const promptFilePath = path.join(lanesDir, `${taskName}.txt`);
-            fs.writeFileSync(promptFilePath, combinedPrompt, 'utf-8');
+            await fsPromises.writeFile(promptFilePath, combinedPrompt, 'utf-8');
             // Pass prompt file content as argument using command substitution
             terminal.sendText(`claude "$(cat "${promptFilePath}")"`);
         } else {
@@ -511,10 +527,12 @@ export async function getBranchesInWorktrees(cwd: string): Promise<Set<string>> 
     return branches;
 }
 
-function ensureWorktreeDirExists(root: string) {
+async function ensureWorktreeDirExists(root: string): Promise<void> {
     const dir = path.join(root, WORKTREE_FOLDER);
-    if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir);
+    try {
+        await fsPromises.access(dir);
+    } catch {
+        await fsPromises.mkdir(dir, { recursive: true });
     }
 }
 
@@ -568,44 +586,41 @@ function getRelativeFilePath(configKey: string): string {
 /**
  * Sets up Claude hooks for status file updates in a worktree.
  * Merges with existing hooks without overwriting user configuration.
+ * Uses atomic writes to prevent race conditions.
  */
 async function setupStatusHooks(worktreePath: string): Promise<void> {
     const claudeDir = path.join(worktreePath, '.claude');
     const settingsPath = path.join(claudeDir, 'settings.json');
+    const tempSettingsPath = path.join(claudeDir, `settings.json.${Date.now()}.tmp`);
 
     // Get configured paths for status and session files
     const statusRelPath = getRelativeFilePath('claudeStatusPath');
     const sessionRelPath = getRelativeFilePath('claudeSessionPath');
 
     // Ensure .claude directory exists
-    if (!fs.existsSync(claudeDir)) {
-        fs.mkdirSync(claudeDir, { recursive: true });
-    }
+    await fsPromises.mkdir(claudeDir, { recursive: true });
 
     // Ensure status file directory exists if configured
     if (statusRelPath) {
         const statusDir = path.join(worktreePath, statusRelPath.replace(/\/$/, ''));
-        if (!fs.existsSync(statusDir)) {
-            fs.mkdirSync(statusDir, { recursive: true });
-        }
+        await fsPromises.mkdir(statusDir, { recursive: true });
     }
 
     // Ensure session file directory exists if configured
     if (sessionRelPath) {
         const sessionDir = path.join(worktreePath, sessionRelPath.replace(/\/$/, ''));
-        if (!fs.existsSync(sessionDir)) {
-            fs.mkdirSync(sessionDir, { recursive: true });
-        }
+        await fsPromises.mkdir(sessionDir, { recursive: true });
     }
 
     // Read existing settings or start fresh
     let settings: ClaudeSettings = {};
-    if (fs.existsSync(settingsPath)) {
-        try {
-            const content = fs.readFileSync(settingsPath, 'utf-8');
-            settings = JSON.parse(content);
-        } catch {
-            // If invalid JSON, start fresh but warn user
+    try {
+        const content = await fsPromises.readFile(settingsPath, 'utf-8');
+        settings = JSON.parse(content);
+    } catch (err) {
+        // Check if file doesn't exist (that's ok) vs other errors
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+            // File exists but is invalid JSON - warn user
             const answer = await vscode.window.showWarningMessage(
                 'Existing .claude/settings.json is invalid. Overwrite?',
                 'Overwrite',
@@ -615,6 +630,7 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
                 throw new Error('Setup cancelled - invalid existing settings');
             }
         }
+        // File doesn't exist or user chose to overwrite - start fresh
     }
 
     // Initialize hooks object if needed
@@ -710,6 +726,16 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
         });
     }
 
-    // Write updated settings
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    // Write updated settings atomically (write to temp, then rename)
+    await fsPromises.writeFile(tempSettingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+    await fsPromises.rename(tempSettingsPath, settingsPath);
+}
+
+/**
+ * Called when the extension is deactivated.
+ * VS Code handles cleanup of subscriptions automatically,
+ * but this export is provided for explicit resource cleanup if needed.
+ */
+export function deactivate(): void {
+    // All disposables are cleaned up via context.subscriptions
 }

@@ -318,13 +318,20 @@ export class SessionItem extends vscode.TreeItem {
     }
 }
 
-export class ClaudeSessionProvider implements vscode.TreeDataProvider<SessionItem> {
-    
+export class ClaudeSessionProvider implements vscode.TreeDataProvider<SessionItem>, vscode.Disposable {
+
     // Event Emitter to notify VS Code when the tree changes (e.g. new session added)
     private _onDidChangeTreeData: vscode.EventEmitter<SessionItem | undefined | null | void> = new vscode.EventEmitter<SessionItem | undefined | null | void>();
     readonly onDidChangeTreeData: vscode.Event<SessionItem | undefined | null | void> = this._onDidChangeTreeData.event;
 
     constructor(private workspaceRoot: string | undefined) {}
+
+    /**
+     * Dispose of resources held by this provider.
+     */
+    dispose(): void {
+        this._onDidChangeTreeData.dispose();
+    }
 
     // 1. Refresh Method: Call this after creating a new session
     refresh(): void {

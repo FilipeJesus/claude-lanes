@@ -43,6 +43,19 @@ npm install -g @anthropic-ai/claude-code
 claude login
 ```
 
+**Required for session status tracking:** The extension uses [`jq`](https://stedolan.github.io/jq/) for parsing Claude session data. Install it if you don't have it:
+
+```bash
+# macOS
+brew install jq
+
+# Ubuntu/Debian
+sudo apt-get install jq
+
+# Windows (with Chocolatey)
+choco install jq
+```
+
 ### From VS Code Marketplace
 
 Search for **"Claude Lanes"** in the VS Code Extensions marketplace and click Install.
