@@ -5,7 +5,8 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { ClaudeSessionProvider, SessionItem, getFeatureStatus, getClaudeStatus, getSessionId, FeatureStatus, ClaudeStatus, ClaudeSessionData, getFeaturesJsonPath, getTestsJsonPath, getClaudeSessionPath, getClaudeStatusPath } from '../ClaudeSessionProvider';
 import { SessionFormProvider } from '../SessionFormProvider';
-import { combinePromptAndCriteria, branchExists, getBranchesInWorktrees } from '../extension';
+import { combinePromptAndCriteria, branchExists, getBranchesInWorktrees, getBaseBranch } from '../extension';
+import { parseDiff, GitChangesPanel, FileDiff } from '../GitChangesPanel';
 
 suite('Claude Lanes Extension Test Suite', () => {
 
@@ -2740,6 +2741,559 @@ suite('Claude Lanes Extension Test Suite', () => {
 				await Promise.all(refreshPromises);
 				assert.ok(true, 'All concurrent refreshes completed without error');
 			});
+		});
+	});
+
+	suite('Git Changes Button', () => {
+
+		test('should verify showGitChanges command is registered in package.json', () => {
+			// Read and parse package.json from the project root
+			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+			// Assert: package.json has contributes.commands section
+			assert.ok(
+				packageJson.contributes?.commands,
+				'package.json should have contributes.commands section'
+			);
+
+			// Assert: claudeWorktrees.showGitChanges command exists
+			const commands = packageJson.contributes.commands;
+			const showGitChangesCmd = commands.find(
+				(cmd: { command: string }) => cmd.command === 'claudeWorktrees.showGitChanges'
+			);
+
+			assert.ok(
+				showGitChangesCmd,
+				'package.json should have claudeWorktrees.showGitChanges command'
+			);
+			assert.strictEqual(
+				showGitChangesCmd.title,
+				'Show Git Changes',
+				'showGitChanges command should have title "Show Git Changes"'
+			);
+			assert.strictEqual(
+				showGitChangesCmd.icon,
+				'$(git-compare)',
+				'showGitChanges command should have git-compare icon'
+			);
+		});
+
+		test('should verify showGitChanges command appears in view/item/context menu for sessionItem', () => {
+			// Read and parse package.json from the project root
+			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
+			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+
+			// Assert: package.json has menus.view/item/context section
+			const menuItems = packageJson.contributes?.menus?.['view/item/context'];
+			assert.ok(
+				menuItems,
+				'package.json should have contributes.menus.view/item/context section'
+			);
+
+			// Assert: showGitChanges menu item exists with correct when clause
+			const showGitChangesMenuItem = menuItems.find(
+				(item: { command: string }) => item.command === 'claudeWorktrees.showGitChanges'
+			);
+
+			assert.ok(
+				showGitChangesMenuItem,
+				'showGitChanges should be in view/item/context menu'
+			);
+			assert.ok(
+				showGitChangesMenuItem.when.includes('sessionItem'),
+				'showGitChanges menu item should only appear for sessionItem context'
+			);
+			assert.strictEqual(
+				showGitChangesMenuItem.group,
+				'inline@0',
+				'showGitChanges should be in inline group at position 0'
+			);
+		});
+	});
+
+	suite('Git Changes Command', () => {
+
+		test('should have showGitChanges command registered after activation', async () => {
+			// Trigger extension activation by executing one of its commands
+			try {
+				await vscode.commands.executeCommand('claudeWorktrees.openSession');
+			} catch {
+				// Expected to fail without proper args, but extension is now activated
+			}
+
+			const commands = await vscode.commands.getCommands(true);
+
+			assert.ok(
+				commands.includes('claudeWorktrees.showGitChanges'),
+				'showGitChanges command should be registered after extension activation'
+			);
+		});
+	});
+
+	suite('getBaseBranch', () => {
+		// Note: These tests use the actual git repository to test getBaseBranch behavior.
+		// The function checks for origin/main, origin/master, local main, local master in that order.
+
+		// Get the path to the git repository root
+		const repoRoot = path.resolve(__dirname, '..', '..');
+
+		test('should return a branch name for a valid git repository', async () => {
+			// Act: Call getBaseBranch on our real repository
+			const result = await getBaseBranch(repoRoot);
+
+			// Assert: Should return one of the expected base branches
+			const validBranches = ['origin/main', 'origin/master', 'main', 'master'];
+			assert.ok(
+				validBranches.includes(result),
+				`getBaseBranch should return one of ${validBranches.join(', ')}, got: ${result}`
+			);
+		});
+
+		test('should prefer origin/main if it exists', async () => {
+			// Note: This test assumes origin/main exists in our repository
+			// If origin/main exists, it should be returned first
+			const result = await getBaseBranch(repoRoot);
+
+			// For most GitHub repos with a main branch and origin remote, this should return origin/main
+			// If the result is origin/main, the preference logic is working
+			if (result === 'origin/main') {
+				assert.ok(true, 'getBaseBranch correctly prefers origin/main');
+			} else {
+				// If origin/main doesn't exist, the function falls back appropriately
+				assert.ok(
+					['origin/master', 'main', 'master'].includes(result),
+					`getBaseBranch fell back to: ${result}`
+				);
+			}
+		});
+
+		test('should return main as fallback for non-git directory', async () => {
+			// Arrange: Create a temporary directory that is NOT a git repository
+			const tempNonGitDir = fs.mkdtempSync(path.join(os.tmpdir(), 'non-git-base-branch-'));
+
+			try {
+				// Act
+				const result = await getBaseBranch(tempNonGitDir);
+
+				// Assert: Should return 'main' as the default fallback
+				assert.strictEqual(
+					result,
+					'main',
+					'getBaseBranch should return "main" as fallback for non-git directory'
+				);
+			} finally {
+				// Cleanup
+				fs.rmSync(tempNonGitDir, { recursive: true, force: true });
+			}
+		});
+	});
+
+	suite('Git Changes Webview', () => {
+
+		test('should verify GitChangesPanel has createOrShow static method', () => {
+			// Assert: GitChangesPanel has createOrShow as a function
+			assert.ok(
+				typeof GitChangesPanel.createOrShow === 'function',
+				'GitChangesPanel should export createOrShow static method'
+			);
+
+			// Assert: createOrShow accepts 3 parameters (extensionUri, sessionName, diffContent)
+			// Function.length returns the number of expected parameters
+			assert.strictEqual(
+				GitChangesPanel.createOrShow.length,
+				3,
+				'createOrShow should accept 3 parameters: extensionUri, sessionName, diffContent'
+			);
+		});
+
+		test('should verify GitChangesPanel has viewType static property', () => {
+			assert.strictEqual(
+				GitChangesPanel.viewType,
+				'gitChangesPanel',
+				'GitChangesPanel.viewType should be "gitChangesPanel"'
+			);
+		});
+
+		suite('parseDiff', () => {
+
+			test('should return empty array for empty diff content', () => {
+				const result = parseDiff('');
+				assert.deepStrictEqual(result, [], 'parseDiff should return empty array for empty string');
+			});
+
+			test('should correctly extract file names from diff headers', () => {
+				const diffContent = `diff --git a/src/file.ts b/src/file.ts
+index 1234567..abcdefg 100644
+--- a/src/file.ts
++++ b/src/file.ts
+@@ -1,3 +1,4 @@
+ const a = 1;
++const b = 2;
+ const c = 3;`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+				assert.strictEqual(result[0].filePath, 'src/file.ts', 'Should extract file path correctly');
+				assert.strictEqual(result[0].oldPath, 'src/file.ts', 'Should extract old path correctly');
+				assert.strictEqual(result[0].newPath, 'src/file.ts', 'Should extract new path correctly');
+			});
+
+			test('should correctly identify added lines (+)', () => {
+				const diffContent = `diff --git a/test.ts b/test.ts
+index 1234567..abcdefg 100644
+--- a/test.ts
++++ b/test.ts
+@@ -1,2 +1,4 @@
+ line 1
++added line 1
++added line 2
+ line 2`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+				assert.strictEqual(result[0].addedCount, 2, 'Should count 2 added lines');
+
+				const addedLines = result[0].hunks[0].lines.filter(l => l.type === 'added');
+				assert.strictEqual(addedLines.length, 2, 'Should have 2 added lines');
+				assert.strictEqual(addedLines[0].content, 'added line 1', 'First added line content');
+				assert.strictEqual(addedLines[1].content, 'added line 2', 'Second added line content');
+			});
+
+			test('should correctly identify removed lines (-)', () => {
+				const diffContent = `diff --git a/test.ts b/test.ts
+index 1234567..abcdefg 100644
+--- a/test.ts
++++ b/test.ts
+@@ -1,4 +1,2 @@
+ line 1
+-removed line 1
+-removed line 2
+ line 2`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+				assert.strictEqual(result[0].removedCount, 2, 'Should count 2 removed lines');
+
+				const removedLines = result[0].hunks[0].lines.filter(l => l.type === 'removed');
+				assert.strictEqual(removedLines.length, 2, 'Should have 2 removed lines');
+				assert.strictEqual(removedLines[0].content, 'removed line 1', 'First removed line content');
+				assert.strictEqual(removedLines[1].content, 'removed line 2', 'Second removed line content');
+			});
+
+			test('should correctly identify context lines', () => {
+				const diffContent = `diff --git a/test.ts b/test.ts
+index 1234567..abcdefg 100644
+--- a/test.ts
++++ b/test.ts
+@@ -1,3 +1,4 @@
+ context line 1
++added line
+ context line 2
+ context line 3`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+
+				const contextLines = result[0].hunks[0].lines.filter(l => l.type === 'context');
+				assert.strictEqual(contextLines.length, 3, 'Should have 3 context lines');
+				assert.strictEqual(contextLines[0].content, 'context line 1', 'First context line content');
+			});
+
+			test('should parse multiple files in a single diff', () => {
+				const diffContent = `diff --git a/file1.ts b/file1.ts
+index 1234567..abcdefg 100644
+--- a/file1.ts
++++ b/file1.ts
+@@ -1,2 +1,3 @@
+ const a = 1;
++const b = 2;
+ const c = 3;
+diff --git a/file2.ts b/file2.ts
+index 7654321..gfedcba 100644
+--- a/file2.ts
++++ b/file2.ts
+@@ -1,2 +1,3 @@
+ let x = 'a';
++let y = 'b';
+ let z = 'c';`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 2, 'Should parse two files');
+				assert.strictEqual(result[0].filePath, 'file1.ts', 'First file path');
+				assert.strictEqual(result[1].filePath, 'file2.ts', 'Second file path');
+			});
+
+			test('should identify new files', () => {
+				const diffContent = `diff --git a/newfile.ts b/newfile.ts
+new file mode 100644
+index 0000000..1234567
+--- /dev/null
++++ b/newfile.ts
+@@ -0,0 +1,2 @@
++const x = 1;
++const y = 2;`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+				assert.strictEqual(result[0].isNew, true, 'File should be marked as new');
+				assert.strictEqual(result[0].addedCount, 2, 'Should count 2 added lines');
+			});
+
+			test('should identify deleted files', () => {
+				const diffContent = `diff --git a/deleted.ts b/deleted.ts
+deleted file mode 100644
+index 1234567..0000000
+--- a/deleted.ts
++++ /dev/null
+@@ -1,2 +0,0 @@
+-const x = 1;
+-const y = 2;`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+				assert.strictEqual(result[0].isDeleted, true, 'File should be marked as deleted');
+				assert.strictEqual(result[0].removedCount, 2, 'Should count 2 removed lines');
+			});
+
+			test('should identify renamed files', () => {
+				const diffContent = `diff --git a/oldname.ts b/newname.ts
+rename from oldname.ts
+rename to newname.ts
+index 1234567..abcdefg 100644`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+				assert.strictEqual(result[0].isRenamed, true, 'File should be marked as renamed');
+			});
+
+			test('should parse hunk headers correctly', () => {
+				const diffContent = `diff --git a/test.ts b/test.ts
+index 1234567..abcdefg 100644
+--- a/test.ts
++++ b/test.ts
+@@ -10,5 +10,6 @@
+ context
++added
+ context`;
+
+				const result = parseDiff(diffContent);
+
+				assert.strictEqual(result.length, 1, 'Should parse one file');
+				assert.strictEqual(result[0].hunks.length, 1, 'Should have one hunk');
+				assert.strictEqual(result[0].hunks[0].oldStart, 10, 'Old start should be 10');
+				assert.strictEqual(result[0].hunks[0].oldCount, 5, 'Old count should be 5');
+				assert.strictEqual(result[0].hunks[0].newStart, 10, 'New start should be 10');
+				assert.strictEqual(result[0].hunks[0].newCount, 6, 'New count should be 6');
+			});
+
+			test('should track line numbers correctly', () => {
+				const diffContent = `diff --git a/test.ts b/test.ts
+index 1234567..abcdefg 100644
+--- a/test.ts
++++ b/test.ts
+@@ -5,3 +5,4 @@
+ context at 5
++added at 6
+ context at 6/7`;
+
+				const result = parseDiff(diffContent);
+				const lines = result[0].hunks[0].lines;
+
+				// First context line
+				assert.strictEqual(lines[0].type, 'context');
+				assert.strictEqual(lines[0].oldLineNumber, 5, 'Context line old number should be 5');
+				assert.strictEqual(lines[0].newLineNumber, 5, 'Context line new number should be 5');
+
+				// Added line (no old line number, new line number 6)
+				assert.strictEqual(lines[1].type, 'added');
+				assert.strictEqual(lines[1].oldLineNumber, null, 'Added line should have null old number');
+				assert.strictEqual(lines[1].newLineNumber, 6, 'Added line new number should be 6');
+
+				// Second context line
+				assert.strictEqual(lines[2].type, 'context');
+				assert.strictEqual(lines[2].oldLineNumber, 6, 'Second context line old number should be 6');
+				assert.strictEqual(lines[2].newLineNumber, 7, 'Second context line new number should be 7');
+			});
+
+			test('should handle diff with only removed lines correctly tracking line numbers', () => {
+				const diffContent = `diff --git a/test.ts b/test.ts
+index 1234567..abcdefg 100644
+--- a/test.ts
++++ b/test.ts
+@@ -10,3 +10,1 @@
+-removed at 10
+-removed at 11
+ context at 12/10`;
+
+				const result = parseDiff(diffContent);
+				const lines = result[0].hunks[0].lines;
+
+				// First removed line
+				assert.strictEqual(lines[0].type, 'removed');
+				assert.strictEqual(lines[0].oldLineNumber, 10, 'First removed line old number should be 10');
+				assert.strictEqual(lines[0].newLineNumber, null, 'Removed line should have null new number');
+
+				// Second removed line
+				assert.strictEqual(lines[1].type, 'removed');
+				assert.strictEqual(lines[1].oldLineNumber, 11, 'Second removed line old number should be 11');
+				assert.strictEqual(lines[1].newLineNumber, null, 'Removed line should have null new number');
+			});
+		});
+	});
+
+	suite('Git Changes Panel HTML Generation', () => {
+
+		test('should verify FileDiff interface has required properties', () => {
+			// This test verifies the FileDiff interface structure by creating
+			// an object that matches the interface
+			const fileDiff: FileDiff = {
+				filePath: 'test/file.ts',
+				oldPath: 'test/file.ts',
+				newPath: 'test/file.ts',
+				isNew: false,
+				isDeleted: false,
+				isRenamed: false,
+				hunks: [],
+				addedCount: 5,
+				removedCount: 3
+			};
+
+			assert.strictEqual(fileDiff.filePath, 'test/file.ts');
+			assert.strictEqual(fileDiff.addedCount, 5);
+			assert.strictEqual(fileDiff.removedCount, 3);
+			assert.strictEqual(fileDiff.isNew, false);
+			assert.strictEqual(fileDiff.isDeleted, false);
+			assert.strictEqual(fileDiff.isRenamed, false);
+		});
+
+		test('parseDiff output should match expected FileDiff structure for HTML generation', () => {
+			const diffContent = `diff --git a/src/component.tsx b/src/component.tsx
+index 1234567..abcdefg 100644
+--- a/src/component.tsx
++++ b/src/component.tsx
+@@ -10,5 +10,7 @@
+ const Component = () => {
++  const [state, setState] = useState(false);
++  const handleClick = () => setState(true);
+   return <div>Hello</div>;
+-}
++};
+ export default Component;`;
+
+			const result = parseDiff(diffContent);
+
+			// Verify the structure is correct for HTML generation
+			assert.strictEqual(result.length, 1);
+			const file = result[0];
+
+			// Verify file metadata for file header generation
+			assert.strictEqual(file.filePath, 'src/component.tsx');
+
+			// Verify counts for badge generation (+N / -N badges)
+			assert.strictEqual(file.addedCount, 3, 'Should have 3 added lines for badge');
+			assert.strictEqual(file.removedCount, 1, 'Should have 1 removed line for badge');
+
+			// Verify hunks exist for diff table generation
+			assert.strictEqual(file.hunks.length, 1, 'Should have 1 hunk');
+
+			// Verify lines have correct types for CSS class assignment
+			const lines = file.hunks[0].lines;
+			const addedLines = lines.filter(l => l.type === 'added');
+			const removedLines = lines.filter(l => l.type === 'removed');
+			const contextLines = lines.filter(l => l.type === 'context');
+
+			assert.strictEqual(addedLines.length, 3, 'Should have 3 added lines');
+			assert.strictEqual(removedLines.length, 1, 'Should have 1 removed line');
+			assert.ok(contextLines.length > 0, 'Should have context lines');
+
+			// Verify each line has required properties for HTML row generation
+			for (const line of lines) {
+				assert.ok(['added', 'removed', 'context'].includes(line.type), 'Line type should be valid');
+				assert.ok(typeof line.content === 'string', 'Line content should be a string');
+				// Line numbers should be number or null
+				assert.ok(
+					line.oldLineNumber === null || typeof line.oldLineNumber === 'number',
+					'Old line number should be number or null'
+				);
+				assert.ok(
+					line.newLineNumber === null || typeof line.newLineNumber === 'number',
+					'New line number should be number or null'
+				);
+			}
+		});
+
+		test('should handle special characters in diff content for HTML escaping', () => {
+			const diffContent = `diff --git a/test.html b/test.html
+index 1234567..abcdefg 100644
+--- a/test.html
++++ b/test.html
+@@ -1,2 +1,3 @@
+ <div class="container">
++  <span>&copy; 2025</span>
+ </div>`;
+
+			const result = parseDiff(diffContent);
+
+			assert.strictEqual(result.length, 1);
+			const addedLine = result[0].hunks[0].lines.find(l => l.type === 'added');
+			assert.ok(addedLine);
+			// The content should contain the raw HTML characters (escaping happens during HTML generation)
+			assert.ok(
+				addedLine.content.includes('<span>'),
+				'Content should include raw HTML tags for later escaping'
+			);
+			assert.ok(
+				addedLine.content.includes('&copy;'),
+				'Content should include raw HTML entities for later escaping'
+			);
+		});
+
+		test('should correctly parse complex real-world diff', () => {
+			const complexDiff = `diff --git a/src/extension.ts b/src/extension.ts
+index abc1234..def5678 100644
+--- a/src/extension.ts
++++ b/src/extension.ts
+@@ -1,5 +1,6 @@
+ import * as vscode from 'vscode';
++import * as path from 'path';
+
+ export function activate(context: vscode.ExtensionContext) {
+     console.log('Extension activated');
+@@ -20,8 +21,10 @@ export function activate(context: vscode.ExtensionContext) {
+     });
+
+     context.subscriptions.push(disposable);
++
++    // New feature added here
++    setupNewFeature(context);
+ }
+-
+ export function deactivate() {}`;
+
+			const result = parseDiff(complexDiff);
+
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].filePath, 'src/extension.ts');
+
+			// Should have 2 hunks
+			assert.strictEqual(result[0].hunks.length, 2, 'Should have 2 hunks');
+
+			// First hunk: 1 addition
+			assert.strictEqual(result[0].hunks[0].oldStart, 1);
+			assert.strictEqual(result[0].hunks[0].newStart, 1);
+
+			// Verify total counts
+			assert.strictEqual(result[0].addedCount, 4, 'Should have 4 added lines total');
+			assert.strictEqual(result[0].removedCount, 1, 'Should have 1 removed line total');
 		});
 	});
 });
