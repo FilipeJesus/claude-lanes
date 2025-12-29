@@ -78,10 +78,20 @@
         "command": "claudeWorktrees.setupStatusHooks",
         "title": "Setup Status Hooks",
         "icon": "$(gear)"
+      },
+      {
+        "command": "claudeWorktrees.showGitChanges",
+        "title": "Show Git Changes",
+        "icon": "$(git-compare)"
       }
     ],
     "menus": {
       "view/item/context": [
+        {
+          "command": "claudeWorktrees.showGitChanges",
+          "when": "view == claudeSessionsView && viewItem == sessionItem",
+          "group": "inline@0"
+        },
         {
           "command": "claudeWorktrees.setupStatusHooks",
           "when": "view == claudeSessionsView",

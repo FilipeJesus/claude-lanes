@@ -5,6 +5,7 @@ import * as fsPromises from 'fs/promises';
 import { ClaudeSessionProvider, SessionItem, getSessionId } from './ClaudeSessionProvider';
 import { SessionFormProvider } from './SessionFormProvider';
 import { initializeGitPath, execGit } from './gitService';
+import { GitChangesPanel } from './GitChangesPanel';
 
 /**
  * Helper to get error message from unknown error type
@@ -222,10 +223,44 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // 6. Register SHOW GIT CHANGES Command
+    let showGitChangesDisposable = vscode.commands.registerCommand('claudeWorktrees.showGitChanges', async (item: SessionItem) => {
+        if (!item || !item.worktreePath) {
+            vscode.window.showErrorMessage('Please right-click on a session to view git changes.');
+            return;
+        }
+
+        // Verify the worktree path exists
+        if (!fs.existsSync(item.worktreePath)) {
+            vscode.window.showErrorMessage(`Worktree path does not exist: ${item.worktreePath}`);
+            return;
+        }
+
+        try {
+            // Determine the base branch (main or master)
+            const baseBranch = await getBaseBranch(item.worktreePath);
+
+            // Get the diff from the base branch to HEAD
+            const diffContent = await execGit(['diff', `${baseBranch}...HEAD`], item.worktreePath);
+
+            // Check if there are any changes
+            if (!diffContent || diffContent.trim() === '') {
+                vscode.window.showInformationMessage('No changes in this session');
+                return;
+            }
+
+            // Open the GitChangesPanel with the diff content
+            GitChangesPanel.createOrShow(context.extensionUri, item.label, diffContent);
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to get git changes: ${getErrorMessage(err)}`);
+        }
+    });
+
     context.subscriptions.push(createDisposable);
     context.subscriptions.push(openDisposable);
     context.subscriptions.push(deleteDisposable);
     context.subscriptions.push(setupHooksDisposable);
+    context.subscriptions.push(showGitChangesDisposable);
 }
 
 /**
@@ -716,6 +751,49 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     // Write updated settings atomically (write to temp, then rename)
     await fsPromises.writeFile(tempSettingsPath, JSON.stringify(settings, null, 2), 'utf-8');
     await fsPromises.rename(tempSettingsPath, settingsPath);
+}
+
+/**
+ * Determines the base branch for comparing changes.
+ * Checks in order: origin/main, origin/master, main, master.
+ * @param cwd The working directory (git repo or worktree)
+ * @returns The name of the base branch to use for comparisons
+ */
+export async function getBaseBranch(cwd: string): Promise<string> {
+    // Check for origin/main
+    try {
+        await execGit(['show-ref', '--verify', '--quiet', 'refs/remotes/origin/main'], cwd);
+        return 'origin/main';
+    } catch {
+        // origin/main doesn't exist, try next
+    }
+
+    // Check for origin/master
+    try {
+        await execGit(['show-ref', '--verify', '--quiet', 'refs/remotes/origin/master'], cwd);
+        return 'origin/master';
+    } catch {
+        // origin/master doesn't exist, try local branches
+    }
+
+    // Check for local main
+    try {
+        await execGit(['show-ref', '--verify', '--quiet', 'refs/heads/main'], cwd);
+        return 'main';
+    } catch {
+        // main doesn't exist, try master
+    }
+
+    // Check for local master
+    try {
+        await execGit(['show-ref', '--verify', '--quiet', 'refs/heads/master'], cwd);
+        return 'master';
+    } catch {
+        // master doesn't exist either
+    }
+
+    // Default fallback - this will likely fail but gives a sensible error
+    return 'main';
 }
 
 /**
