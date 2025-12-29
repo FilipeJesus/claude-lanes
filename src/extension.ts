@@ -15,6 +15,7 @@ function getErrorMessage(err: unknown): string {
 }
 
 const WORKTREE_FOLDER = '.worktrees';
+const MAX_SESSION_NAME_LENGTH = 50;
 
 /**
  * Get the glob pattern for watching a file based on configuration.
@@ -78,7 +79,7 @@ function getSessionWatchPattern(): string {
 }
 
 export async function activate(context: vscode.ExtensionContext) {
-    console.log('Congratulations, "Claude Lanes" is now active!'); // Check Debug Console for this
+    console.log('Claude Lanes extension activated successfully!'); // Extension startup log
 
     // Initialize git path from VS Code Git Extension (with fallback to 'git')
     await initializeGitPath();

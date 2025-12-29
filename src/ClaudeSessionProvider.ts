@@ -16,7 +16,7 @@ export interface FeatureStatus {
 }
 
 // Valid Claude status states
-export type ClaudeStatusState = 'working' | 'waiting_for_user' | 'idle' | 'error';
+export type ClaudeStatusState = 'working' | 'waiting_for_user' | 'idle' | 'error' | 'paused';
 
 // Status from .claude-status file
 export interface ClaudeStatus {
@@ -26,7 +26,7 @@ export interface ClaudeStatus {
 }
 
 // Valid status values for validation
-const VALID_STATUS_VALUES: ClaudeStatusState[] = ['working', 'waiting_for_user', 'idle', 'error'];
+const VALID_STATUS_VALUES: ClaudeStatusState[] = ['working', 'waiting_for_user', 'idle', 'error', 'paused'];
 
 /**
  * Validates and sanitizes a relative path for security.
