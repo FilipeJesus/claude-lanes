@@ -17,5 +17,6 @@ tests.json
 claude-progress.txt
 CLAUDE.md
 .claude/**
+.worktrees/**
 *.vsix
 .git/**
