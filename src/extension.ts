@@ -1059,15 +1059,43 @@ function getRelativeFilePath(configKey: string): string {
 }
 
 /**
+ * Helper to check if our status hook already exists in settings
+ */
+function hasStatusHook(settings: ClaudeSettings): boolean {
+    if (!settings.hooks) {return false;}
+    const hookTypes = ['Stop', 'UserPromptSubmit', 'Notification', 'PreToolUse'];
+    return hookTypes.some(hookType => {
+        const entries = settings.hooks?.[hookType];
+        if (!entries) {return false;}
+        return entries.some(entry =>
+            entry.hooks.some(h => h.command.includes('.claude-status'))
+        );
+    });
+}
+
+/**
+ * Helper to check if our session hook already exists in settings
+ */
+function hasSessionHook(settings: ClaudeSettings): boolean {
+    if (!settings.hooks) {return false;}
+    const entries = settings.hooks.SessionStart;
+    if (!entries) {return false;}
+    return entries.some(entry =>
+        entry.hooks.some(h => h.command.includes('.claude-session'))
+    );
+}
+
+/**
  * Sets up Claude hooks for status file updates in a worktree.
- * Merges with existing hooks without overwriting user configuration.
+ * Always writes hooks to settings.local.json.
+ * If hooks exist in settings.json, offers to migrate them to settings.local.json.
  * Uses atomic writes to prevent race conditions.
  * When global storage is enabled, uses absolute paths to the global storage directory.
  */
 async function setupStatusHooks(worktreePath: string): Promise<void> {
     const claudeDir = path.join(worktreePath, '.claude');
     const settingsPath = path.join(claudeDir, 'settings.json');
-    const tempSettingsPath = path.join(claudeDir, `settings.json.${Date.now()}.tmp`);
+    const settingsLocalPath = path.join(claudeDir, 'settings.local.json');
 
     // Check if global storage is enabled
     const useGlobalStorage = isGlobalStorageEnabled();
@@ -1117,17 +1145,94 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     // Ensure .claude directory exists
     await fsPromises.mkdir(claudeDir, { recursive: true });
 
-    // Read existing settings or start fresh
-    let settings: ClaudeSettings = {};
+    // Check if hooks already exist in settings.json (deprecated location)
+    let existingSettings: ClaudeSettings = {};
+    let hooksExistInSettingsJson = false;
     try {
         const content = await fsPromises.readFile(settingsPath, 'utf-8');
+        existingSettings = JSON.parse(content);
+        hooksExistInSettingsJson = hasStatusHook(existingSettings) || hasSessionHook(existingSettings);
+    } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+            // File exists but is invalid JSON
+            console.warn('Claude Lanes: settings.json is invalid');
+        }
+        // File doesn't exist - that's ok
+    }
+
+    // Default to settings.local.json
+    let targetPath = settingsLocalPath;
+
+    // If hooks exist in settings.json, ask user if they want to migrate
+    if (hooksExistInSettingsJson) {
+        const migrate = await vscode.window.showInformationMessage(
+            'Claude Lanes hooks found in settings.json (deprecated). Move to settings.local.json?',
+            'Yes, migrate',
+            'No, keep in settings.json'
+        );
+
+        if (migrate === 'Yes, migrate') {
+            // Remove hooks from settings.json
+            if (existingSettings.hooks) {
+                // Remove our hooks from settings.json
+                const hookTypes = ['SessionStart', 'Stop', 'UserPromptSubmit', 'Notification', 'PreToolUse'];
+                for (const hookType of hookTypes) {
+                    const entries = existingSettings.hooks[hookType];
+                    if (entries) {
+                        existingSettings.hooks[hookType] = entries
+                            .map(entry => ({
+                                ...entry,
+                                hooks: entry.hooks.filter(h =>
+                                    !h.command.includes('.claude-status') &&
+                                    !h.command.includes('.claude-session')
+                                )
+                            }))
+                            .filter(entry => entry.hooks.length > 0);
+
+                        // Remove empty arrays
+                        if (existingSettings.hooks[hookType].length === 0) {
+                            delete existingSettings.hooks[hookType];
+                        }
+                    }
+                }
+
+                // Remove hooks object if empty
+                if (Object.keys(existingSettings.hooks).length === 0) {
+                    delete existingSettings.hooks;
+                }
+
+                // Write cleaned settings.json (or delete if empty)
+                if (Object.keys(existingSettings).length === 0) {
+                    await fsPromises.unlink(settingsPath).catch(() => {});
+                } else {
+                    const tempSettingsPath = path.join(claudeDir, `settings.json.${Date.now()}.tmp`);
+                    await fsPromises.writeFile(tempSettingsPath, JSON.stringify(existingSettings, null, 2), 'utf-8');
+                    await fsPromises.rename(tempSettingsPath, settingsPath);
+                }
+            }
+            // targetPath remains settingsLocalPath
+        } else if (migrate === 'No, keep in settings.json') {
+            // User chose to keep using settings.json
+            targetPath = settingsPath;
+        } else {
+            // User dismissed the dialog - default to settings.local.json but don't remove from settings.json
+            // This is a safe default that doesn't modify their existing settings.json
+        }
+    }
+
+    const tempPath = path.join(claudeDir, `${path.basename(targetPath)}.${Date.now()}.tmp`);
+
+    // Read existing settings from the target file
+    let settings: ClaudeSettings = {};
+    try {
+        const content = await fsPromises.readFile(targetPath, 'utf-8');
         settings = JSON.parse(content);
     } catch (err) {
-        // Check if file doesn't exist (that's ok) vs other errors
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
             // File exists but is invalid JSON - warn user
+            const fileName = path.basename(targetPath);
             const answer = await vscode.window.showWarningMessage(
-                'Existing .claude/settings.json is invalid. Overwrite?',
+                `Existing .claude/${fileName} is invalid. Overwrite?`,
                 'Overwrite',
                 'Cancel'
             );
@@ -1159,22 +1264,6 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     const sessionIdCapture = {
         type: 'command',
         command: `jq -r --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{sessionId: .session_id, timestamp: $ts}' > "${sessionFilePath}"`
-    };
-
-    // Helper to check if our status hook already exists
-    const statusHookExists = (entries: HookEntry[] | undefined): boolean => {
-        if (!entries) {return false;}
-        return entries.some(entry =>
-            entry.hooks.some(h => h.command.includes('.claude-status'))
-        );
-    };
-
-    // Helper to check if our session ID hook already exists
-    const sessionHookExists = (entries: HookEntry[] | undefined): boolean => {
-        if (!entries) {return false;}
-        return entries.some(entry =>
-            entry.hooks.some(h => h.command.includes('.claude-session'))
-        );
     };
 
     // Helper to remove existing hooks (used when updating paths)
@@ -1228,8 +1317,8 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     });
 
     // Write updated settings atomically (write to temp, then rename)
-    await fsPromises.writeFile(tempSettingsPath, JSON.stringify(settings, null, 2), 'utf-8');
-    await fsPromises.rename(tempSettingsPath, settingsPath);
+    await fsPromises.writeFile(tempPath, JSON.stringify(settings, null, 2), 'utf-8');
+    await fsPromises.rename(tempPath, targetPath);
 }
 
 /**
