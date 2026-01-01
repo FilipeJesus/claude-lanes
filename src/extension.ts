@@ -10,7 +10,7 @@ import {
     isGlobalStorageEnabled,
     getGlobalStoragePath,
     getRepoIdentifier,
-    getGlobalStorageUri
+    getWorktreesFolder
 } from './ClaudeSessionProvider';
 import { SessionFormProvider } from './SessionFormProvider';
 import { initializeGitPath, execGit } from './gitService';
@@ -24,7 +24,42 @@ function getErrorMessage(err: unknown): string {
     return err instanceof Error ? err.message : String(err);
 }
 
-const WORKTREE_FOLDER = '.worktrees';
+/**
+ * Get the configured prompts folder path.
+ * Security: Validates path to prevent directory traversal.
+ * @returns The prompts folder path (default: '.claude/lanes')
+ */
+function getPromptsFolder(): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const folder = config.get<string>('promptsFolder', '.claude/lanes');
+
+    if (!folder || !folder.trim()) {
+        return '.claude/lanes';
+    }
+
+    const trimmedFolder = folder.trim()
+        .replace(/\\/g, '/') // Normalize backslashes
+        .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+
+    // Security: Reject empty result after normalization
+    if (!trimmedFolder) {
+        return '.claude/lanes';
+    }
+
+    // Security: Reject absolute paths
+    if (path.isAbsolute(trimmedFolder)) {
+        console.warn('Claude Lanes: Absolute paths not allowed in promptsFolder. Using default.');
+        return '.claude/lanes';
+    }
+
+    // Security: Reject parent directory traversal
+    if (trimmedFolder.includes('..')) {
+        console.warn('Claude Lanes: Invalid promptsFolder path. Using default.');
+        return '.claude/lanes';
+    }
+
+    return trimmedFolder;
+}
 
 /**
  * Check if the given path is a git worktree and return the base repo path.
@@ -99,6 +134,7 @@ export async function getBaseRepoPath(workspacePath: string): Promise<string> {
 function getWatchPattern(configKey: string, filename: string): string {
     const config = vscode.workspace.getConfiguration('claudeLanes');
     const relativePath = config.get<string>(configKey, '');
+    const worktreesFolder = getWorktreesFolder();
 
     if (relativePath && relativePath.trim()) {
         // Normalize backslashes and remove leading/trailing slashes
@@ -109,18 +145,18 @@ function getWatchPattern(configKey: string, filename: string): string {
         // Security: Reject absolute paths
         if (path.isAbsolute(normalizedPath)) {
             console.warn(`Claude Lanes: Absolute paths not allowed in ${configKey}. Using default.`);
-            return `.worktrees/**/${filename}`;
+            return `${worktreesFolder}/**/${filename}`;
         }
 
         // Security: Reject paths with parent directory traversal
         if (normalizedPath.includes('..')) {
             console.warn(`Claude Lanes: Invalid path in ${configKey}: ${normalizedPath}. Using default.`);
-            return `.worktrees/**/${filename}`;
+            return `${worktreesFolder}/**/${filename}`;
         }
 
-        return `.worktrees/**/${normalizedPath}/${filename}`;
+        return `${worktreesFolder}/**/${normalizedPath}/${filename}`;
     }
-    return `.worktrees/**/${filename}`;
+    return `${worktreesFolder}/**/${filename}`;
 }
 
 /**
@@ -308,7 +344,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
                 // Offer to update existing worktrees
                 if (baseRepoPath) {
-                    const worktreesDir = path.join(baseRepoPath, WORKTREE_FOLDER);
+                    const worktreesDir = path.join(baseRepoPath, getWorktreesFolder());
                     if (fs.existsSync(worktreesDir)) {
                         const updateExisting = await vscode.window.showQuickPick(
                             [
@@ -626,7 +662,7 @@ async function createSession(
             return;
         }
 
-        const worktreePath = path.join(workspaceRoot, '.worktrees', trimmedName);
+        const worktreePath = path.join(workspaceRoot, getWorktreesFolder(), trimmedName);
         console.log(`Target path: ${worktreePath}`);
 
         try {
@@ -799,10 +835,10 @@ async function openClaudeTerminal(taskName: string, worktreePath: string, prompt
         const combinedPrompt = combinePromptAndCriteria(prompt, acceptanceCriteria);
         if (combinedPrompt) {
             // Write prompt to file in main repo for history and to avoid terminal buffer issues
-            // Stored in <repo>/.claude/lanes/<session-name>.txt for user reference
-            // Derive repo root from worktree path: <repo>/.worktrees/<session-name>
+            // Stored in <repo>/<promptsFolder>/<session-name>.txt for user reference
+            // Derive repo root from worktree path: <repo>/<worktreesFolder>/<session-name>
             const repoRoot = path.dirname(path.dirname(worktreePath));
-            const lanesDir = path.join(repoRoot, '.claude', 'lanes');
+            const lanesDir = path.join(repoRoot, getPromptsFolder());
             await fsPromises.mkdir(lanesDir, { recursive: true });
             const promptFilePath = path.join(lanesDir, `${taskName}.txt`);
             await fsPromises.writeFile(promptFilePath, combinedPrompt, 'utf-8');
@@ -865,7 +901,7 @@ export async function getBranchesInWorktrees(cwd: string): Promise<Set<string>> 
 }
 
 async function ensureWorktreeDirExists(root: string): Promise<void> {
-    const dir = path.join(root, WORKTREE_FOLDER);
+    const dir = path.join(root, getWorktreesFolder());
     try {
         await fsPromises.access(dir);
     } catch {

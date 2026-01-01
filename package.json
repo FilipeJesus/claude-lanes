@@ -162,6 +162,16 @@
           "type": "boolean",
           "default": true,
           "description": "When viewing Git changes, include uncommitted local changes (staged and unstaged). If false, only shows committed changes."
+        },
+        "claudeLanes.worktreesFolder": {
+          "type": "string",
+          "default": ".worktrees",
+          "description": "The folder name (relative to repository root) where Git worktrees are created. Default is '.worktrees'."
+        },
+        "claudeLanes.promptsFolder": {
+          "type": "string",
+          "default": ".claude/lanes",
+          "description": "The folder (relative to repository root) where session starting prompts are stored. Default is '.claude/lanes'."
         }
       }
     }
