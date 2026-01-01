@@ -119,6 +119,43 @@ export function isGlobalStorageEnabled(): boolean {
 }
 
 /**
+ * Get the configured worktrees folder name.
+ * Security: Validates path to prevent directory traversal.
+ * @returns The worktrees folder name (default: '.worktrees')
+ */
+export function getWorktreesFolder(): string {
+    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const folder = config.get<string>('worktreesFolder', '.worktrees');
+
+    if (!folder || !folder.trim()) {
+        return '.worktrees';
+    }
+
+    const trimmedFolder = folder.trim()
+        .replace(/\\/g, '/') // Normalize backslashes
+        .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+
+    // Security: Reject empty result after normalization
+    if (!trimmedFolder) {
+        return '.worktrees';
+    }
+
+    // Security: Reject absolute paths
+    if (path.isAbsolute(trimmedFolder)) {
+        console.warn('Claude Lanes: Absolute paths not allowed in worktreesFolder. Using default.');
+        return '.worktrees';
+    }
+
+    // Security: Reject parent directory traversal
+    if (trimmedFolder.includes('..')) {
+        console.warn('Claude Lanes: Invalid worktreesFolder path. Using default.');
+        return '.worktrees';
+    }
+
+    return trimmedFolder;
+}
+
+/**
  * Validates and sanitizes a relative path for security.
  * Rejects absolute paths and parent directory traversal attempts.
  * @param relativePath The user-provided relative path
@@ -469,7 +506,7 @@ export class ClaudeSessionProvider implements vscode.TreeDataProvider<SessionIte
         return element;
     }
 
-    // 3. Get the data (Scan the .worktrees folder)
+    // 3. Get the data (Scan the worktrees folder)
     // Uses sessionsRoot (base repo path) to ensure sessions are found even when in a worktree
     getChildren(element?: SessionItem): Thenable<SessionItem[]> {
         if (!this.sessionsRoot) {
@@ -481,7 +518,7 @@ export class ClaudeSessionProvider implements vscode.TreeDataProvider<SessionIte
             return Promise.resolve([]);
         }
 
-        const worktreesDir = path.join(this.sessionsRoot, '.worktrees');
+        const worktreesDir = path.join(this.sessionsRoot, getWorktreesFolder());
 
         // Check if folder exists
         if (!fs.existsSync(worktreesDir)) {
