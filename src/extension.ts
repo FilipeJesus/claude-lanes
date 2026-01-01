@@ -821,8 +821,8 @@ async function createSession(
                 await execGit(['worktree', 'add', worktreePath, '-b', trimmedName], workspaceRoot);
             }
 
-            // 5. Setup status hooks before opening Claude
-            await setupStatusHooks(worktreePath);
+            // 5. Setup status hooks before opening Claude (auto-migrate for new sessions)
+            await setupStatusHooks(worktreePath, true);
 
             // 5b. Add worktree as a project in Project Manager
             // Get sanitized repo name for project naming
@@ -1055,8 +1055,12 @@ function hasSessionHook(settings: ClaudeSettings): boolean {
  * If hooks exist in settings.json, offers to migrate them to settings.local.json.
  * Uses atomic writes to prevent race conditions.
  * When global storage is enabled, uses absolute paths to the global storage directory.
+ *
+ * @param worktreePath Path to the worktree
+ * @param isNewSession If true, auto-migrate without showing dialogs (for new session creation).
+ *                     If false, show migration dialog (for manual "Setup Status Hooks" command).
  */
-async function setupStatusHooks(worktreePath: string): Promise<void> {
+async function setupStatusHooks(worktreePath: string, isNewSession: boolean = false): Promise<void> {
     const claudeDir = path.join(worktreePath, '.claude');
     const settingsPath = path.join(claudeDir, 'settings.json');
     const settingsLocalPath = path.join(claudeDir, 'settings.local.json');
@@ -1127,15 +1131,50 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
     // Default to settings.local.json
     let targetPath = settingsLocalPath;
 
-    // If hooks exist in settings.json, ask user if they want to migrate
+    // If hooks exist in settings.json, handle migration
     if (hooksExistInSettingsJson) {
-        const migrate = await vscode.window.showInformationMessage(
-            'Claude Lanes hooks found in settings.json (deprecated). Move to settings.local.json?',
-            'Yes, migrate',
-            'No, keep in settings.json'
-        );
+        // For new sessions, auto-migrate silently to avoid blocking dialogs
+        // For manual "Setup Status Hooks" command, ask the user via QuickPick (more visible than notification)
+        let shouldMigrate = isNewSession; // Auto-migrate for new sessions
 
-        if (migrate === 'Yes, migrate') {
+        if (!isNewSession) {
+            // Show QuickPick dialog (more visible than notification in bottom-right)
+            const choice = await vscode.window.showQuickPick(
+                [
+                    {
+                        label: 'Yes, migrate to settings.local.json',
+                        description: 'Move hooks to settings.local.json (recommended)',
+                        action: 'migrate'
+                    },
+                    {
+                        label: 'No, keep in settings.json',
+                        description: 'Continue using the deprecated location',
+                        action: 'keep'
+                    }
+                ],
+                {
+                    placeHolder: 'Claude Lanes hooks found in settings.json (deprecated). Migrate?',
+                    title: 'Migrate Hooks to settings.local.json'
+                }
+            );
+
+            if (choice?.action === 'migrate') {
+                shouldMigrate = true;
+            } else if (choice?.action === 'keep') {
+                // User chose to keep using settings.json
+                targetPath = settingsPath;
+            }
+            // If dialog cancelled, default to settings.local.json but don't remove from settings.json
+        }
+
+        if (shouldMigrate) {
+            // Notify user about auto-migration (non-blocking)
+            if (isNewSession) {
+                vscode.window.showInformationMessage(
+                    'Claude Lanes: Migrated session tracking hooks from settings.json to settings.local.json'
+                );
+            }
+
             // Remove hooks from settings.json
             if (existingSettings.hooks) {
                 // Remove our hooks from settings.json
@@ -1175,12 +1214,6 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
                 }
             }
             // targetPath remains settingsLocalPath
-        } else if (migrate === 'No, keep in settings.json') {
-            // User chose to keep using settings.json
-            targetPath = settingsPath;
-        } else {
-            // User dismissed the dialog - default to settings.local.json but don't remove from settings.json
-            // This is a safe default that doesn't modify their existing settings.json
         }
     }
 
@@ -1193,15 +1226,21 @@ async function setupStatusHooks(worktreePath: string): Promise<void> {
         settings = JSON.parse(content);
     } catch (err) {
         if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-            // File exists but is invalid JSON - warn user
-            const fileName = path.basename(targetPath);
-            const answer = await vscode.window.showWarningMessage(
-                `Existing .claude/${fileName} is invalid. Overwrite?`,
-                'Overwrite',
-                'Cancel'
-            );
-            if (answer !== 'Overwrite') {
-                throw new Error('Setup cancelled - invalid existing settings');
+            // File exists but is invalid JSON
+            if (isNewSession) {
+                // For new sessions, auto-overwrite to avoid blocking dialogs
+                console.warn(`Claude Lanes: Overwriting invalid ${path.basename(targetPath)} for new session`);
+            } else {
+                // For manual setup, ask user
+                const fileName = path.basename(targetPath);
+                const answer = await vscode.window.showWarningMessage(
+                    `Existing .claude/${fileName} is invalid. Overwrite?`,
+                    'Overwrite',
+                    'Cancel'
+                );
+                if (answer !== 'Overwrite') {
+                    throw new Error('Setup cancelled - invalid existing settings');
+                }
             }
         }
         // File doesn't exist or user chose to overwrite - start fresh
