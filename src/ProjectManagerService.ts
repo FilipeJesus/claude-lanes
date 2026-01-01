@@ -7,6 +7,11 @@
  * The path to projects.json is derived from our extension's globalStorageUri, ensuring
  * we write to the correct location regardless of the VS Code installation type.
  *
+ * LIMITATION: This integration is disabled in remote development contexts (Remote-SSH,
+ * Remote-WSL, Dev Containers) because Project Manager is a UI extension that runs
+ * locally while Claude Lanes runs on the remote machine. The worktree paths created
+ * on the remote wouldn't be accessible from Project Manager anyway.
+ *
  * @see https://marketplace.visualstudio.com/items?itemName=alefragnani.project-manager
  */
 
@@ -29,9 +34,21 @@ let globalStoragePath: string | undefined;
  * Initialize the service with the extension context.
  * Must be called during extension activation.
  *
+ * Note: Project Manager integration is disabled in remote contexts (Remote-SSH,
+ * Remote-WSL, Dev Containers) because Project Manager is a UI extension that
+ * stores its data locally, while Claude Lanes runs on the remote machine.
+ * The paths would not be accessible from Project Manager anyway.
+ *
  * @param context The VS Code extension context
  */
 export function initialize(context: vscode.ExtensionContext): void {
+    // Skip initialization in remote contexts
+    // Project Manager runs locally while we run on the remote - paths wouldn't match
+    if (vscode.env.remoteName) {
+        console.log(`Claude Lanes: Skipping Project Manager integration in remote context (${vscode.env.remoteName})`);
+        return;
+    }
+
     // Get our extension's global storage path and derive Project Manager's path from it
     // Our path: .../globalStorage/filipeMarquesJesus.claude-lanes
     // PM path:  .../globalStorage/alefragnani.project-manager
