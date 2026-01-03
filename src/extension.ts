@@ -1162,15 +1162,17 @@ async function createSession(
 
     // 1. Check Workspace
     if (!workspaceRoot) {
-        vscode.window.showErrorMessage("Error: You must open a folder/workspace first!");
-        return;
+        const errorMsg = "Error: You must open a folder/workspace first!";
+        vscode.window.showErrorMessage(errorMsg);
+        throw new Error(errorMsg);
     }
 
     // 3. Check Git Status (do this once before the loop)
     const isGit = fs.existsSync(path.join(workspaceRoot, '.git'));
     if (!isGit) {
-        vscode.window.showErrorMessage("Error: Current folder is not a git repository. Run 'git init' first.");
-        return;
+        const errorMsg = "Error: Current folder is not a git repository. Run 'git init' first.";
+        vscode.window.showErrorMessage(errorMsg);
+        throw new Error(errorMsg);
     }
 
     // Use iterative approach to handle name conflicts
@@ -1180,8 +1182,9 @@ async function createSession(
     while (true) {
         // 2. Validate name exists
         if (!currentName || !currentName.trim()) {
-            vscode.window.showErrorMessage("Error: Session name is required!");
-            return;
+            const errorMsg = "Error: Session name is required!";
+            vscode.window.showErrorMessage(errorMsg);
+            throw new Error(errorMsg);
         }
 
         // 2a. Sanitize the name to make it git-safe
@@ -1189,24 +1192,27 @@ async function createSession(
 
         // 2b. Check if sanitization resulted in an empty string
         if (!sanitizedName) {
-            vscode.window.showErrorMessage("Error: Session name contains no valid characters. Use letters, numbers, hyphens, underscores, dots, or slashes.");
-            return;
+            const errorMsg = "Error: Session name contains no valid characters. Use letters, numbers, hyphens, underscores, dots, or slashes.";
+            vscode.window.showErrorMessage(errorMsg);
+            throw new Error(errorMsg);
         }
 
         const trimmedName = sanitizedName;
 
         // 2c. Validate branch name characters (git-safe) - should pass after sanitization
         if (!branchNameRegex.test(trimmedName)) {
-            vscode.window.showErrorMessage("Error: Session name contains invalid characters. Use only letters, numbers, hyphens, underscores, dots, or slashes.");
-            return;
+            const errorMsg = "Error: Session name contains invalid characters. Use only letters, numbers, hyphens, underscores, dots, or slashes.";
+            vscode.window.showErrorMessage(errorMsg);
+            throw new Error(errorMsg);
         }
 
         // 2d. Prevent names that could cause git issues - should pass after sanitization
         if (trimmedName.startsWith('-') || trimmedName.startsWith('.') ||
             trimmedName.endsWith('.') || trimmedName.includes('..') ||
             trimmedName.endsWith('.lock')) {
-            vscode.window.showErrorMessage("Error: Session name cannot start with '-' or '.', end with '.' or '.lock', or contain '..'");
-            return;
+            const errorMsg = "Error: Session name cannot start with '-' or '.', end with '.' or '.lock', or contain '..'";
+            vscode.window.showErrorMessage(errorMsg);
+            throw new Error(errorMsg);
         }
 
         const worktreePath = path.join(workspaceRoot, getWorktreesFolder(), trimmedName);
@@ -1227,11 +1233,10 @@ async function createSession(
 
                 if (branchesInUse.has(trimmedName)) {
                     // Branch is already checked out in another worktree - cannot use it
-                    vscode.window.showErrorMessage(
-                        `Branch '${trimmedName}' is already checked out in another worktree. ` +
-                        `Git does not allow the same branch to be checked out in multiple worktrees.`
-                    );
-                    return;
+                    const errorMsg = `Branch '${trimmedName}' is already checked out in another worktree. ` +
+                        `Git does not allow the same branch to be checked out in multiple worktrees.`;
+                    vscode.window.showErrorMessage(errorMsg);
+                    throw new Error(errorMsg);
                 }
 
                 // Branch exists but is not in use - prompt user for action
@@ -1303,8 +1308,9 @@ async function createSession(
                 if (trimmedSourceBranch) {
                     // Validate branch name format before checking existence
                     if (!branchNameRegex.test(trimmedSourceBranch)) {
-                        vscode.window.showErrorMessage("Error: Source branch name contains invalid characters. Use only letters, numbers, hyphens, underscores, dots, or slashes.");
-                        return;
+                        const errorMsg = "Error: Source branch name contains invalid characters. Use only letters, numbers, hyphens, underscores, dots, or slashes.";
+                        vscode.window.showErrorMessage(errorMsg);
+                        throw new Error(errorMsg);
                     }
 
                     // Verify the source branch exists before using it
@@ -1321,8 +1327,9 @@ async function createSession(
                     }
 
                     if (!sourceBranchExists && !remoteSourceExists) {
-                        vscode.window.showErrorMessage(`Source branch '${trimmedSourceBranch}' does not exist.`);
-                        return;
+                        const errorMsg = `Source branch '${trimmedSourceBranch}' does not exist.`;
+                        vscode.window.showErrorMessage(errorMsg);
+                        throw new Error(errorMsg);
                     }
 
                     console.log(`Running: git worktree add "${worktreePath}" -b "${trimmedName}" "${trimmedSourceBranch}"`);
@@ -1353,8 +1360,9 @@ async function createSession(
 
         } catch (err) {
             console.error(err);
-            vscode.window.showErrorMessage(`Git Error: ${getErrorMessage(err)}`);
-            return;
+            const errorMsg = `Git Error: ${getErrorMessage(err)}`;
+            vscode.window.showErrorMessage(errorMsg);
+            throw new Error(errorMsg);
         }
     }
 }
