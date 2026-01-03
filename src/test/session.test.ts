@@ -2146,7 +2146,7 @@ suite('Session Tests', () => {
 
 				let capturedPermissionMode = '';
 
-				provider.setOnSubmit((_name, _prompt, _acceptanceCriteria, permissionMode) => {
+				provider.setOnSubmit((_name, _prompt, _acceptanceCriteria, _sourceBranch, permissionMode) => {
 					capturedPermissionMode = permissionMode;
 				});
 
@@ -2175,7 +2175,7 @@ suite('Session Tests', () => {
 
 				let capturedPermissionMode = '';
 
-				provider.setOnSubmit((_name, _prompt, _acceptanceCriteria, permissionMode) => {
+				provider.setOnSubmit((_name, _prompt, _acceptanceCriteria, _sourceBranch, permissionMode) => {
 					capturedPermissionMode = permissionMode;
 				});
 
@@ -2197,9 +2197,9 @@ suite('Session Tests', () => {
 
 		suite('Permission Mode Callback Signature', () => {
 
-			test('SessionFormSubmitCallback should accept 4 parameters including permissionMode', async () => {
+			test('SessionFormSubmitCallback should accept 5 parameters including permissionMode', async () => {
 				// This test verifies the callback type signature by setting up
-				// a callback with all 4 parameters and verifying TypeScript compiles it
+				// a callback with all 5 parameters and verifying TypeScript compiles it
 
 				// Arrange
 				const provider = new SessionFormProvider(extensionUri);
@@ -2208,15 +2208,17 @@ suite('Session Tests', () => {
 					name: string;
 					prompt: string;
 					acceptanceCriteria: string;
+					sourceBranch: string;
 					permissionMode: string;
-				} = { name: '', prompt: '', acceptanceCriteria: '', permissionMode: '' };
+				} = { name: '', prompt: '', acceptanceCriteria: '', sourceBranch: '', permissionMode: '' };
 
-				// Act: Set a callback that accepts 4 parameters
-				provider.setOnSubmit((name: string, prompt: string, acceptanceCriteria: string, permissionMode) => {
+				// Act: Set a callback that accepts 5 parameters
+				provider.setOnSubmit((name: string, prompt: string, acceptanceCriteria: string, sourceBranch: string, permissionMode) => {
 					callbackInvoked = true;
 					capturedParams.name = name;
 					capturedParams.prompt = prompt;
 					capturedParams.acceptanceCriteria = acceptanceCriteria;
+					capturedParams.sourceBranch = sourceBranch;
 					capturedParams.permissionMode = permissionMode;
 				});
 
@@ -2254,7 +2256,7 @@ suite('Session Tests', () => {
 					const provider = new SessionFormProvider(extensionUri);
 					let capturedMode = '';
 
-					provider.setOnSubmit((_name, _prompt, _acceptanceCriteria, permissionMode) => {
+					provider.setOnSubmit((_name, _prompt, _acceptanceCriteria, _sourceBranch, permissionMode) => {
 						capturedMode = permissionMode;
 					});
 
