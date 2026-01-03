@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.9.0] - 2026-01-03
+
+### Added
+
+- Source branch selector in session creation form - create sessions from any branch, not just HEAD
+- Permission mode selector in session creation form - choose between default, plan, autoAcceptEdits, bypassPermissions, and more
+- Base branch selector in Git Changes webview - compare against any branch, not just the configured default
+- Untracked files now included in Git Changes diff view
+- Broken worktree detection and automatic repair after container rebuilds
+- Session form data retained when creation fails - no need to re-enter details
+
+### Fixed
+
+- Fixed broken `command` string in session form webview that prevented session creation
+
 ## [0.8.0] - 2026-01-01
 
 ### Added
