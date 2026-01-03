@@ -304,8 +304,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Handle form submission - creates a new session with optional prompt and acceptance criteria
     // Use baseRepoPath for creating sessions to ensure worktrees are created in the main repo
-    sessionFormProvider.setOnSubmit(async (name: string, prompt: string, acceptanceCriteria: string) => {
-        await createSession(name, prompt, acceptanceCriteria, baseRepoPath, sessionProvider);
+    sessionFormProvider.setOnSubmit(async (name: string, prompt: string, acceptanceCriteria: string, sourceBranch: string) => {
+        await createSession(name, prompt, acceptanceCriteria, sourceBranch, baseRepoPath, sessionProvider);
     });
 
     // Watch for .claude-status file changes to refresh the sidebar
@@ -458,9 +458,9 @@ export async function activate(context: vscode.ExtensionContext) {
             return;
         }
 
-        // Use the shared createSession function (no prompt or acceptance criteria when using command palette)
+        // Use the shared createSession function (no prompt, acceptance criteria, or source branch when using command palette)
         // Use baseRepoPath to create sessions in the main repo even when in a worktree
-        await createSession(name, '', '', baseRepoPath, sessionProvider);
+        await createSession(name, '', '', '', baseRepoPath, sessionProvider);
     });
 
     // 3. Register OPEN/RESUME Command
@@ -669,11 +669,19 @@ export async function activate(context: vscode.ExtensionContext) {
  * Creates a new Claude session with optional starting prompt and acceptance criteria.
  * Shared logic between the form-based UI and the command palette.
  * Uses iterative approach to handle name conflicts instead of recursion.
+ *
+ * @param name Session name (used as branch name)
+ * @param prompt Optional starting prompt for Claude
+ * @param acceptanceCriteria Optional acceptance criteria for Claude
+ * @param sourceBranch Optional source branch to create worktree from (empty = use default behavior)
+ * @param workspaceRoot The workspace root path
+ * @param sessionProvider The session provider for refreshing the UI
  */
 async function createSession(
     name: string,
     prompt: string,
     acceptanceCriteria: string,
+    sourceBranch: string,
     workspaceRoot: string | undefined,
     sessionProvider: ClaudeSessionProvider
 ): Promise<void> {
@@ -817,8 +825,40 @@ async function createSession(
                 await execGit(['worktree', 'add', worktreePath, trimmedName], workspaceRoot);
             } else {
                 // Branch doesn't exist - create new branch
-                console.log(`Running: git worktree add "${worktreePath}" -b "${trimmedName}"`);
-                await execGit(['worktree', 'add', worktreePath, '-b', trimmedName], workspaceRoot);
+                // If sourceBranch is provided, use it as the starting point
+                const trimmedSourceBranch = sourceBranch.trim();
+                if (trimmedSourceBranch) {
+                    // Validate branch name format before checking existence
+                    if (!branchNameRegex.test(trimmedSourceBranch)) {
+                        vscode.window.showErrorMessage("Error: Source branch name contains invalid characters. Use only letters, numbers, hyphens, underscores, dots, or slashes.");
+                        return;
+                    }
+
+                    // Verify the source branch exists before using it
+                    const sourceBranchExists = await branchExists(workspaceRoot, trimmedSourceBranch);
+                    // Also check for remote branches (origin/branch-name format)
+                    let remoteSourceExists = false;
+                    if (!sourceBranchExists) {
+                        try {
+                            await execGit(['show-ref', '--verify', '--quiet', `refs/remotes/${trimmedSourceBranch}`], workspaceRoot);
+                            remoteSourceExists = true;
+                        } catch {
+                            // Remote doesn't exist either
+                        }
+                    }
+
+                    if (!sourceBranchExists && !remoteSourceExists) {
+                        vscode.window.showErrorMessage(`Source branch '${trimmedSourceBranch}' does not exist.`);
+                        return;
+                    }
+
+                    console.log(`Running: git worktree add "${worktreePath}" -b "${trimmedName}" "${trimmedSourceBranch}"`);
+                    await execGit(['worktree', 'add', worktreePath, '-b', trimmedName, trimmedSourceBranch], workspaceRoot);
+                } else {
+                    // No source branch specified - use HEAD as starting point (default behavior)
+                    console.log(`Running: git worktree add "${worktreePath}" -b "${trimmedName}"`);
+                    await execGit(['worktree', 'add', worktreePath, '-b', trimmedName], workspaceRoot);
+                }
             }
 
             // 5. Setup status hooks before opening Claude (auto-migrate for new sessions)
