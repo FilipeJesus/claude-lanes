@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
  * Callback type for when the session form is submitted.
  * Can be async - the form will wait for completion before clearing.
  */
-export type SessionFormSubmitCallback = (name: string, prompt: string, acceptanceCriteria: string) => void | Promise<void>;
+export type SessionFormSubmitCallback = (name: string, prompt: string, acceptanceCriteria: string, sourceBranch: string) => void | Promise<void>;
 
 /**
  * Provides a webview form for creating new Claude sessions.
@@ -64,7 +64,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                     if (this._onSubmit) {
                         try {
                             // Await the callback to ensure session creation completes before clearing form
-                            await this._onSubmit(message.name, message.prompt, message.acceptanceCriteria || '');
+                            await this._onSubmit(message.name, message.prompt, message.acceptanceCriteria || '', message.sourceBranch || '');
                         } catch (err) {
                             // Error is already shown by createSession, but log for debugging
                             console.error('Claude Lanes: Session creation failed:', err);
@@ -194,6 +194,18 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         </div>
 
         <div class="form-group">
+            <label for="sourceBranch">Source Branch (optional)</label>
+            <input
+                type="text"
+                id="sourceBranch"
+                name="sourceBranch"
+                placeholder="main"
+                autocomplete="off"
+            />
+            <div class="hint">Leave empty to branch from current HEAD</div>
+        </div>
+
+        <div class="form-group">
             <label for="prompt">Starting Prompt (optional)</label>
             <textarea
                 id="prompt"
@@ -220,6 +232,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         const vscode = acquireVsCodeApi();
         const form = document.getElementById('sessionForm');
         const nameInput = document.getElementById('name');
+        const sourceBranchInput = document.getElementById('sourceBranch');
         const promptInput = document.getElementById('prompt');
         const acceptanceCriteriaInput = document.getElementById('acceptanceCriteria');
 
@@ -227,6 +240,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         const previousState = vscode.getState();
         if (previousState) {
             nameInput.value = previousState.name || '';
+            sourceBranchInput.value = previousState.sourceBranch || '';
             promptInput.value = previousState.prompt || '';
             acceptanceCriteriaInput.value = previousState.acceptanceCriteria || '';
         }
@@ -235,6 +249,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         function saveState() {
             vscode.setState({
                 name: nameInput.value,
+                sourceBranch: sourceBranchInput.value,
                 prompt: promptInput.value,
                 acceptanceCriteria: acceptanceCriteriaInput.value
             });
@@ -242,6 +257,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
 
         // Attach change listeners to all form inputs
         nameInput.addEventListener('input', saveState);
+        sourceBranchInput.addEventListener('input', saveState);
         promptInput.addEventListener('input', saveState);
         acceptanceCriteriaInput.addEventListener('input', saveState);
 
@@ -249,6 +265,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             e.preventDefault();
 
             const name = nameInput.value.trim();
+            const sourceBranch = sourceBranchInput.value.trim();
             const prompt = promptInput.value.trim();
             const acceptanceCriteria = acceptanceCriteriaInput.value.trim();
 
@@ -261,6 +278,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             vscode.postMessage({
                 command: 'createSession',
                 name: name,
+                sourceBranch: sourceBranch,
                 prompt: prompt,
                 acceptanceCriteria: acceptanceCriteria
             });
@@ -272,11 +290,13 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             switch (message.command) {
                 case 'clearForm':
                     nameInput.value = '';
+                    sourceBranchInput.value = '';
                     promptInput.value = '';
                     acceptanceCriteriaInput.value = '';
                     // Clear saved state after successful submission
                     vscode.setState({
                         name: '',
+                        sourceBranch: '',
                         prompt: '',
                         acceptanceCriteria: ''
                     });

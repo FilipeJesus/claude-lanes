@@ -347,8 +347,11 @@ suite('Configuration Test Suite', () => {
 
 		let tempDir: string;
 
-		setup(() => {
+		setup(async () => {
 			tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-session-status-paths-test-'));
+			// Disable global storage for these tests since we're testing worktree-based path resolution
+			const config = vscode.workspace.getConfiguration('claudeLanes');
+			await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 		});
 
 		teardown(async () => {
@@ -358,6 +361,7 @@ suite('Configuration Test Suite', () => {
 			await config.update('testsJsonPath', undefined, vscode.ConfigurationTarget.Global);
 			await config.update('claudeSessionPath', undefined, vscode.ConfigurationTarget.Global);
 			await config.update('claudeStatusPath', undefined, vscode.ConfigurationTarget.Global);
+			await config.update('useGlobalStorage', undefined, vscode.ConfigurationTarget.Global);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 		});
 
