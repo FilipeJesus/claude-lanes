@@ -2471,4 +2471,437 @@ suite('Session Tests', () => {
 			});
 		});
 	});
+
+	suite('Session Form Retention on Failure', () => {
+
+		let retentionTestTempDir: string;
+		let extensionUri: vscode.Uri;
+
+		setup(() => {
+			retentionTestTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'form-retention-test-'));
+			extensionUri = vscode.Uri.file(retentionTestTempDir);
+		});
+
+		teardown(() => {
+			fs.rmSync(retentionTestTempDir, { recursive: true, force: true });
+		});
+
+		/**
+		 * Helper to create a mock WebviewView for testing
+		 */
+		function createMockWebviewView(): {
+			webviewView: vscode.WebviewView;
+			capturedHtml: { value: string };
+			messageHandler: { callback: ((message: unknown) => void) | null };
+			postMessageSpy: { messages: unknown[] };
+		} {
+			const capturedHtml = { value: '' };
+			const messageHandler: { callback: ((message: unknown) => void) | null } = { callback: null };
+			const postMessageSpy: { messages: unknown[] } = { messages: [] };
+
+			const mockWebview = {
+				options: {} as vscode.WebviewOptions,
+				html: '',
+				onDidReceiveMessage: (callback: (message: unknown) => void) => {
+					messageHandler.callback = callback;
+					return { dispose: () => { messageHandler.callback = null; } };
+				},
+				postMessage: (message: unknown) => {
+					postMessageSpy.messages.push(message);
+					return Promise.resolve(true);
+				},
+				asWebviewUri: (uri: vscode.Uri) => uri,
+				cspSource: 'test-csp-source'
+			};
+
+			// Create a proxy to capture html assignment
+			const webviewProxy = new Proxy(mockWebview, {
+				set(target, prop, value) {
+					if (prop === 'html') {
+						capturedHtml.value = value as string;
+					}
+					(target as Record<string, unknown>)[prop as string] = value;
+					return true;
+				},
+				get(target, prop) {
+					return (target as Record<string, unknown>)[prop as string];
+				}
+			});
+
+			const mockWebviewView = {
+				webview: webviewProxy as unknown as vscode.Webview,
+				viewType: 'claudeSessionFormView',
+				title: undefined,
+				description: undefined,
+				badge: undefined,
+				visible: true,
+				onDidDispose: () => ({ dispose: () => {} }),
+				onDidChangeVisibility: () => ({ dispose: () => {} }),
+				show: () => {}
+			} as unknown as vscode.WebviewView;
+
+			return { webviewView: mockWebviewView, capturedHtml, messageHandler, postMessageSpy };
+		}
+
+		test('should NOT clear form when createSession throws an error (workspace validation failure)', async () => {
+			// This test verifies that when onSubmit callback throws an error
+			// (e.g., no workspace folder), the form is NOT cleared so user can retry.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up callback that throws an error (simulating workspace validation failure)
+			provider.setOnSubmit(() => {
+				throw new Error('No workspace folder open');
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'test-session',
+				prompt: 'Fix the bug',
+				acceptanceCriteria: 'It should work',
+				sourceBranch: 'develop',
+				permissionMode: 'plan'
+			});
+
+			// Assert - clearForm should NOT be posted when an error occurs
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				0,
+				'No messages should be posted when onSubmit throws an error'
+			);
+		});
+
+		test('should NOT clear form when createSession throws an error (git validation failure)', async () => {
+			// This test verifies that when onSubmit callback throws an error
+			// related to git operations, the form is NOT cleared.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up callback that throws an error (simulating git validation failure)
+			provider.setOnSubmit(() => {
+				throw new Error('Failed to verify git repository');
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'my-feature',
+				prompt: 'Implement new feature',
+				acceptanceCriteria: 'Tests should pass',
+				sourceBranch: 'main',
+				permissionMode: 'default'
+			});
+
+			// Assert - clearForm should NOT be posted when git error occurs
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				0,
+				'No messages should be posted when git validation fails'
+			);
+		});
+
+		test('should NOT clear form when createSession throws an error (session name validation failure)', async () => {
+			// This test verifies that when onSubmit callback throws an error
+			// due to invalid session name, the form is NOT cleared.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up callback that throws an error (simulating session name validation failure)
+			provider.setOnSubmit(() => {
+				throw new Error('Session name contains invalid characters');
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'invalid/name!',
+				prompt: 'Some prompt',
+				acceptanceCriteria: '',
+				sourceBranch: '',
+				permissionMode: 'default'
+			});
+
+			// Assert - clearForm should NOT be posted when name validation fails
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				0,
+				'No messages should be posted when session name validation fails'
+			);
+		});
+
+		test('should NOT clear form when createSession throws an error (source branch validation failure)', async () => {
+			// This test verifies that when onSubmit callback throws an error
+			// due to non-existent source branch, the form is NOT cleared.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up callback that throws an error (simulating source branch validation failure)
+			provider.setOnSubmit(() => {
+				throw new Error("Branch 'non-existent-branch' does not exist");
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'my-session',
+				prompt: 'Work on feature',
+				acceptanceCriteria: 'Feature complete',
+				sourceBranch: 'non-existent-branch',
+				permissionMode: 'acceptEdits'
+			});
+
+			// Assert - clearForm should NOT be posted when source branch is invalid
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				0,
+				'No messages should be posted when source branch validation fails'
+			);
+		});
+
+		test('should clear form when createSession succeeds', async () => {
+			// This test verifies that when onSubmit callback succeeds (no error),
+			// the form IS cleared.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up callback that succeeds (no error thrown)
+			let callbackInvoked = false;
+			provider.setOnSubmit(() => {
+				callbackInvoked = true;
+				// No error thrown - session creation succeeded
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'successful-session',
+				prompt: 'Implement feature X',
+				acceptanceCriteria: 'Feature works',
+				sourceBranch: 'main',
+				permissionMode: 'default'
+			});
+
+			// Assert - clearForm SHOULD be posted when session creation succeeds
+			assert.ok(callbackInvoked, 'Callback should have been invoked');
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				1,
+				'One message should be posted after successful session creation'
+			);
+			assert.deepStrictEqual(
+				postMessageSpy.messages[0],
+				{ command: 'clearForm' },
+				'The message should be clearForm command'
+			);
+		});
+
+		test('should clear form when user cancels dialog (callback returns without error)', async () => {
+			// This test verifies that when user cancels a dialog (QuickPick/InputBox),
+			// the callback returns normally (not throwing), so form IS cleared.
+			// User cancellation is NOT an error - user chose to cancel.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up callback that returns without error (simulating user cancellation)
+			// Note: In the actual implementation, user cancellation uses 'return' not 'throw'
+			let callbackInvoked = false;
+			provider.setOnSubmit(() => {
+				callbackInvoked = true;
+				// User cancelled - no error thrown, just return
+				return;
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'cancelled-session',
+				prompt: 'Some prompt',
+				acceptanceCriteria: '',
+				sourceBranch: '',
+				permissionMode: 'default'
+			});
+
+			// Assert - clearForm SHOULD be posted when user cancels (no error thrown)
+			assert.ok(callbackInvoked, 'Callback should have been invoked');
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				1,
+				'One message should be posted when user cancels (no error)'
+			);
+			assert.deepStrictEqual(
+				postMessageSpy.messages[0],
+				{ command: 'clearForm' },
+				'The message should be clearForm command'
+			);
+		});
+
+		test('should NOT clear form when async createSession throws an error', async () => {
+			// This test verifies that async errors are also caught and form is retained.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up async callback that throws an error
+			provider.setOnSubmit(async () => {
+				// Simulate async operation that fails
+				await new Promise(resolve => setTimeout(resolve, 10));
+				throw new Error('Async operation failed');
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'async-fail-session',
+				prompt: 'Test async failure',
+				acceptanceCriteria: '',
+				sourceBranch: '',
+				permissionMode: 'default'
+			});
+
+			// Assert - clearForm should NOT be posted when async error occurs
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				0,
+				'No messages should be posted when async operation fails'
+			);
+		});
+
+		test('should clear form when async createSession succeeds', async () => {
+			// This test verifies that async success properly clears the form.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			// Set up async callback that succeeds
+			let callbackInvoked = false;
+			provider.setOnSubmit(async () => {
+				// Simulate async operation that succeeds
+				await new Promise(resolve => setTimeout(resolve, 10));
+				callbackInvoked = true;
+				// No error thrown - success
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				name: 'async-success-session',
+				prompt: 'Test async success',
+				acceptanceCriteria: 'Should succeed',
+				sourceBranch: 'main',
+				permissionMode: 'plan'
+			});
+
+			// Assert - clearForm SHOULD be posted when async operation succeeds
+			assert.ok(callbackInvoked, 'Callback should have been invoked');
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				1,
+				'One message should be posted after successful async session creation'
+			);
+			assert.deepStrictEqual(
+				postMessageSpy.messages[0],
+				{ command: 'clearForm' },
+				'The message should be clearForm command'
+			);
+		});
+
+		test('should preserve all form fields when error occurs', async () => {
+			// This test verifies the conceptual behavior that form fields are preserved
+			// when an error occurs. Since the form clearing happens via postMessage,
+			// not clearing means the webview state remains unchanged.
+
+			// Arrange
+			const provider = new SessionFormProvider(extensionUri);
+			const { webviewView, messageHandler, postMessageSpy } = createMockWebviewView();
+			const mockContext = {} as vscode.WebviewViewResolveContext;
+			const mockToken = new vscode.CancellationTokenSource().token;
+
+			const formData = {
+				name: 'preserved-session',
+				prompt: 'This prompt should be preserved',
+				acceptanceCriteria: 'These criteria should be preserved',
+				sourceBranch: 'feature-branch',
+				permissionMode: 'bypassPermissions'
+			};
+
+			// Set up callback that throws an error
+			provider.setOnSubmit(() => {
+				throw new Error('Session creation failed');
+			});
+
+			// Act
+			provider.resolveWebviewView(webviewView, mockContext, mockToken);
+
+			assert.ok(messageHandler.callback, 'Message handler should be registered');
+			await messageHandler.callback({
+				command: 'createSession',
+				...formData
+			});
+
+			// Assert - No clearForm message means form fields remain with their values
+			assert.strictEqual(
+				postMessageSpy.messages.length,
+				0,
+				'No clearForm message should be sent, preserving form fields'
+			);
+
+			// The fact that no clearForm is sent means the webview retains its state
+			// This is the key behavior being tested
+		});
+	});
 });

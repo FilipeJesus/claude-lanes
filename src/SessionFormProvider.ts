@@ -311,8 +311,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
 
             // Send message to extension
             vscode.postMessage({
-                command: '
-                ',
+                command: 'createSession',
                 name: name,
                 sourceBranch: sourceBranch,
                 prompt: prompt,
