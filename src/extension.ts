@@ -15,6 +15,7 @@ import {
 import { SessionFormProvider, PermissionMode, isValidPermissionMode } from './SessionFormProvider';
 import { initializeGitPath, execGit } from './gitService';
 import { GitChangesPanel, OnBranchChangeCallback } from './GitChangesPanel';
+import { PreviousSessionProvider, PreviousSessionItem, getPromptsFolder } from './PreviousSessionProvider';
 import { addProject, removeProject, clearCache as clearProjectManagerCache, initialize as initializeProjectManagerService } from './ProjectManagerService';
 
 /**
@@ -343,42 +344,7 @@ export async function checkAndRepairBrokenWorktrees(baseRepoPath: string): Promi
     }
 }
 
-/**
- * Get the configured prompts folder path.
- * Security: Validates path to prevent directory traversal.
- * @returns The prompts folder path (default: '.claude/lanes')
- */
-function getPromptsFolder(): string {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
-    const folder = config.get<string>('promptsFolder', '.claude/lanes');
-
-    if (!folder || !folder.trim()) {
-        return '.claude/lanes';
-    }
-
-    const trimmedFolder = folder.trim()
-        .replace(/\\/g, '/') // Normalize backslashes
-        .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
-
-    // Security: Reject empty result after normalization
-    if (!trimmedFolder) {
-        return '.claude/lanes';
-    }
-
-    // Security: Reject absolute paths
-    if (path.isAbsolute(trimmedFolder)) {
-        console.warn('Claude Lanes: Absolute paths not allowed in promptsFolder. Using default.');
-        return '.claude/lanes';
-    }
-
-    // Security: Reject parent directory traversal
-    if (trimmedFolder.includes('..')) {
-        console.warn('Claude Lanes: Invalid promptsFolder path. Using default.');
-        return '.claude/lanes';
-    }
-
-    return trimmedFolder;
-}
+// getPromptsFolder is imported from PreviousSessionProvider.ts
 
 /**
  * Sanitize a session name to be a valid git branch name.
@@ -620,6 +586,11 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider('claudeSessionsView', sessionProvider);
     context.subscriptions.push(sessionProvider);
 
+    // Initialize Previous Sessions Provider
+    const previousSessionProvider = new PreviousSessionProvider(workspaceRoot, baseRepoPath);
+    vscode.window.registerTreeDataProvider('previousSessionsView', previousSessionProvider);
+    context.subscriptions.push(previousSessionProvider);
+
     // Initialize Session Form Provider (webview in sidebar)
     const sessionFormProvider = new SessionFormProvider(context.extensionUri);
     context.subscriptions.push(
@@ -705,6 +676,40 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(globalSessionWatcher);
         // Note: features.json and tests.json are NOT stored in global storage
         // as they are development workflow files, not extension-managed session files
+    }
+
+    // Watch for changes to the prompts folder to refresh previous sessions
+    if (watchPath) {
+        const promptsFolder = getPromptsFolder();
+        const promptsWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(watchPath, `${promptsFolder}/*.txt`)
+        );
+
+        promptsWatcher.onDidChange(() => previousSessionProvider.refresh());
+        promptsWatcher.onDidCreate(() => previousSessionProvider.refresh());
+        promptsWatcher.onDidDelete(() => previousSessionProvider.refresh());
+
+        context.subscriptions.push(promptsWatcher);
+    }
+
+    // Watch for worktree folder changes to refresh both active and previous sessions
+    if (watchPath) {
+        const worktreesFolder = getWorktreesFolder();
+        const worktreeFolderWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(watchPath, `${worktreesFolder}/*`)
+        );
+
+        // When worktrees are added/removed, both views need updating
+        worktreeFolderWatcher.onDidCreate(() => {
+            sessionProvider.refresh();
+            previousSessionProvider.refresh();
+        });
+        worktreeFolderWatcher.onDidDelete(() => {
+            sessionProvider.refresh();
+            previousSessionProvider.refresh();
+        });
+
+        context.subscriptions.push(worktreeFolderWatcher);
     }
 
     // Listen for configuration changes to update hooks when storage location changes
@@ -1117,12 +1122,29 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // 8. Register OPEN PREVIOUS SESSION PROMPT Command
+    let openPreviousPromptDisposable = vscode.commands.registerCommand('claudeWorktrees.openPreviousSessionPrompt', async (item: PreviousSessionItem) => {
+        if (!item || !item.promptFilePath) {
+            vscode.window.showErrorMessage('Please click on a previous session to view its prompt.');
+            return;
+        }
+
+        try {
+            // Open the prompt file in the editor
+            const document = await vscode.workspace.openTextDocument(item.promptFilePath);
+            await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to open prompt file: ${getErrorMessage(err)}`);
+        }
+    });
+
     context.subscriptions.push(createDisposable);
     context.subscriptions.push(openDisposable);
     context.subscriptions.push(deleteDisposable);
     context.subscriptions.push(setupHooksDisposable);
     context.subscriptions.push(showGitChangesDisposable);
     context.subscriptions.push(openWindowDisposable);
+    context.subscriptions.push(openPreviousPromptDisposable);
 
     // Auto-resume Claude session when opened in a worktree with an existing session
     if (isInWorktree && workspaceRoot) {
