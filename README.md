@@ -265,6 +265,28 @@ Each worktree is a complete, isolated copy of your repository on its own Git bra
 
 ---
 
+## Using with Dev Containers
+
+When running Claude Lanes inside a [Dev Container](https://code.visualstudio.com/docs/devcontainers/containers), session tracking files are stored in VS Code's global storage directory, which lives within `.vscode-server/` and is **destroyed on container rebuild**.
+
+### Persisting Session Data
+
+Add a named volume to your `devcontainer.json` to persist Claude Lanes storage across rebuilds:
+
+```json
+{
+  "mounts": [
+    "source=claude-lanes-storage,target=/root/.vscode-server/data/User/globalStorage/filipeMarquesJesus.claude-lanes,type=volume"
+  ]
+}
+```
+
+> **Note:** Replace `/root` with `/home/<username>` if using a non-root user.
+
+Your worktree files, prompt history, and `features.json`/`tests.json` are stored in the mounted workspace and always survive rebuilds.
+
+---
+
 ## Roadmap
 
 - [x] Session status indicators (idle, working, waiting)
