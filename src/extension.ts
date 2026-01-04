@@ -19,6 +19,7 @@ import {
 import { SessionFormProvider, PermissionMode, isValidPermissionMode } from './SessionFormProvider';
 import { initializeGitPath, execGit } from './gitService';
 import { GitChangesPanel, OnBranchChangeCallback } from './GitChangesPanel';
+import { PreviousSessionProvider, PreviousSessionItem, getPromptsDir } from './PreviousSessionProvider';
 import { addProject, removeProject, clearCache as clearProjectManagerCache, initialize as initializeProjectManagerService } from './ProjectManagerService';
 
 /**
@@ -347,6 +348,7 @@ export async function checkAndRepairBrokenWorktrees(baseRepoPath: string): Promi
     }
 }
 
+// getPromptsDir is imported from PreviousSessionProvider.ts
 
 /**
  * Sanitize a session name to be a valid git branch name.
@@ -588,6 +590,11 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.window.registerTreeDataProvider('claudeSessionsView', sessionProvider);
     context.subscriptions.push(sessionProvider);
 
+    // Initialize Previous Sessions Provider
+    const previousSessionProvider = new PreviousSessionProvider(workspaceRoot, baseRepoPath);
+    vscode.window.registerTreeDataProvider('previousSessionsView', previousSessionProvider);
+    context.subscriptions.push(previousSessionProvider);
+
     // Initialize Session Form Provider (webview in sidebar)
     const sessionFormProvider = new SessionFormProvider(context.extensionUri);
     context.subscriptions.push(
@@ -673,6 +680,43 @@ export async function activate(context: vscode.ExtensionContext) {
         context.subscriptions.push(globalSessionWatcher);
         // Note: features.json and tests.json are NOT stored in global storage
         // as they are development workflow files, not extension-managed session files
+    }
+
+    // Watch for changes to the prompts folder to refresh previous sessions
+    // getPromptsDir returns an absolute path (may be in global storage or repo-relative)
+    if (watchPath) {
+        const promptsDirPath = getPromptsDir(watchPath);
+        if (promptsDirPath) {
+            const promptsWatcher = vscode.workspace.createFileSystemWatcher(
+                new vscode.RelativePattern(promptsDirPath, '*.txt')
+            );
+
+            promptsWatcher.onDidChange(() => previousSessionProvider.refresh());
+            promptsWatcher.onDidCreate(() => previousSessionProvider.refresh());
+            promptsWatcher.onDidDelete(() => previousSessionProvider.refresh());
+
+            context.subscriptions.push(promptsWatcher);
+        }
+    }
+
+    // Watch for worktree folder changes to refresh both active and previous sessions
+    if (watchPath) {
+        const worktreesFolder = getWorktreesFolder();
+        const worktreeFolderWatcher = vscode.workspace.createFileSystemWatcher(
+            new vscode.RelativePattern(watchPath, `${worktreesFolder}/*`)
+        );
+
+        // When worktrees are added/removed, both views need updating
+        worktreeFolderWatcher.onDidCreate(() => {
+            sessionProvider.refresh();
+            previousSessionProvider.refresh();
+        });
+        worktreeFolderWatcher.onDidDelete(() => {
+            sessionProvider.refresh();
+            previousSessionProvider.refresh();
+        });
+
+        context.subscriptions.push(worktreeFolderWatcher);
     }
 
     // Listen for configuration changes to update hooks when storage location changes
@@ -1086,12 +1130,29 @@ export async function activate(context: vscode.ExtensionContext) {
         }
     });
 
+    // 8. Register OPEN PREVIOUS SESSION PROMPT Command
+    let openPreviousPromptDisposable = vscode.commands.registerCommand('claudeWorktrees.openPreviousSessionPrompt', async (item: PreviousSessionItem) => {
+        if (!item || !item.promptFilePath) {
+            vscode.window.showErrorMessage('Please click on a previous session to view its prompt.');
+            return;
+        }
+
+        try {
+            // Open the prompt file in the editor
+            const document = await vscode.workspace.openTextDocument(item.promptFilePath);
+            await vscode.window.showTextDocument(document, { preview: false });
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to open prompt file: ${getErrorMessage(err)}`);
+        }
+    });
+
     context.subscriptions.push(createDisposable);
     context.subscriptions.push(openDisposable);
     context.subscriptions.push(deleteDisposable);
     context.subscriptions.push(setupHooksDisposable);
     context.subscriptions.push(showGitChangesDisposable);
     context.subscriptions.push(openWindowDisposable);
+    context.subscriptions.push(openPreviousPromptDisposable);
 
     // Auto-resume Claude session when opened in a worktree with an existing session
     if (isInWorktree && workspaceRoot) {

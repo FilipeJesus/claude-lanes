@@ -59,6 +59,11 @@
           "id": "claudeSessionsView",
           "name": "Active Sessions",
           "icon": "$(list-tree)"
+        },
+        {
+          "id": "previousSessionsView",
+          "name": "Previous Sessions",
+          "icon": "$(history)"
         }
       ]
     },
@@ -91,6 +96,11 @@
         "command": "claudeWorktrees.openInNewWindow",
         "title": "Open in New Window",
         "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "claudeWorktrees.openPreviousSessionPrompt",
+        "title": "Open Session Prompt",
+        "icon": "$(file)"
       }
     ],
     "menus": {
