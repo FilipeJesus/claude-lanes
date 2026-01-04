@@ -1,43 +1,57 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getWorktreesFolder } from './ClaudeSessionProvider';
+import { getWorktreesFolder, getGlobalStorageUri, getRepoIdentifier, getBaseRepoPathForStorage } from './ClaudeSessionProvider';
 
 /**
- * Get the configured prompts folder path.
- * Security: Validates path to prevent directory traversal.
- * @returns The prompts folder path (default: '.claude/lanes')
+ * Get the prompts directory path based on configuration.
+ * Matches the logic in getPromptsPath from ClaudeSessionProvider.
+ *
+ * @param repoRoot The repository root path
+ * @returns The absolute path to the prompts directory, or null if not determinable
  */
-export function getPromptsFolder(): string {
+export function getPromptsDir(repoRoot: string): string | null {
     const config = vscode.workspace.getConfiguration('claudeLanes');
-    const folder = config.get<string>('promptsFolder', '.claude/lanes');
+    const promptsFolder = config.get<string>('promptsFolder', '');
 
-    if (!folder || !folder.trim()) {
-        return '.claude/lanes';
+    // If user has specified a promptsFolder, use repo-relative storage
+    if (promptsFolder && promptsFolder.trim()) {
+        const trimmedFolder = promptsFolder.trim()
+            .replace(/\\/g, '/') // Normalize backslashes
+            .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+
+        // Security: Reject empty result after normalization
+        if (!trimmedFolder) {
+            // Fall through to global storage
+        }
+        // Security: Reject absolute paths
+        else if (path.isAbsolute(trimmedFolder)) {
+            console.warn('Claude Lanes: Absolute paths not allowed in promptsFolder. Using global storage.');
+            // Fall through to global storage
+        }
+        // Security: Reject parent directory traversal
+        else if (trimmedFolder.includes('..')) {
+            console.warn('Claude Lanes: Invalid promptsFolder path (contains ..). Using global storage.');
+            // Fall through to global storage
+        }
+        else {
+            // Valid user-specified path - use repo-relative storage
+            return path.join(repoRoot, trimmedFolder);
+        }
     }
 
-    const trimmedFolder = folder.trim()
-        .replace(/\\/g, '/') // Normalize backslashes
-        .replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+    // Default: Use global storage
+    const globalStorageUri = getGlobalStorageUri();
+    const baseRepoPath = getBaseRepoPathForStorage();
 
-    // Security: Reject empty result after normalization
-    if (!trimmedFolder) {
-        return '.claude/lanes';
+    if (!globalStorageUri || !baseRepoPath) {
+        // Global storage not initialized - fall back to legacy default
+        console.warn('Claude Lanes: Global storage not initialized. Using legacy prompts location (.claude/lanes).');
+        return path.join(repoRoot, '.claude', 'lanes');
     }
 
-    // Security: Reject absolute paths
-    if (path.isAbsolute(trimmedFolder)) {
-        console.warn('Claude Lanes: Absolute paths not allowed in promptsFolder. Using default.');
-        return '.claude/lanes';
-    }
-
-    // Security: Reject parent directory traversal
-    if (trimmedFolder.includes('..')) {
-        console.warn('Claude Lanes: Invalid promptsFolder path. Using default.');
-        return '.claude/lanes';
-    }
-
-    return trimmedFolder;
+    const repoIdentifier = getRepoIdentifier(baseRepoPath);
+    return path.join(globalStorageUri.fsPath, repoIdentifier, 'prompts');
 }
 
 /**
@@ -129,11 +143,11 @@ export class PreviousSessionProvider implements vscode.TreeDataProvider<Previous
             return Promise.resolve([]);
         }
 
-        // Get the prompts folder path
-        const promptsDir = path.join(this.sessionsRoot, getPromptsFolder());
+        // Get the prompts directory path (respects global storage vs repo-relative config)
+        const promptsDir = getPromptsDir(this.sessionsRoot);
 
-        // Check if prompts folder exists
-        if (!fs.existsSync(promptsDir)) {
+        // Check if prompts directory is determinable and exists
+        if (!promptsDir || !fs.existsSync(promptsDir)) {
             return Promise.resolve([]);
         }
 

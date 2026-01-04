@@ -9,13 +9,17 @@ import {
     initializeGlobalStorageContext,
     isGlobalStorageEnabled,
     getGlobalStoragePath,
+    getGlobalStorageUri,
+    getBaseRepoPathForStorage,
+    getSessionNameFromWorktree,
     getRepoIdentifier,
-    getWorktreesFolder
+    getWorktreesFolder,
+    getPromptsPath
 } from './ClaudeSessionProvider';
 import { SessionFormProvider, PermissionMode, isValidPermissionMode } from './SessionFormProvider';
 import { initializeGitPath, execGit } from './gitService';
 import { GitChangesPanel, OnBranchChangeCallback } from './GitChangesPanel';
-import { PreviousSessionProvider, PreviousSessionItem, getPromptsFolder } from './PreviousSessionProvider';
+import { PreviousSessionProvider, PreviousSessionItem, getPromptsDir } from './PreviousSessionProvider';
 import { addProject, removeProject, clearCache as clearProjectManagerCache, initialize as initializeProjectManagerService } from './ProjectManagerService';
 
 /**
@@ -344,7 +348,7 @@ export async function checkAndRepairBrokenWorktrees(baseRepoPath: string): Promi
     }
 }
 
-// getPromptsFolder is imported from PreviousSessionProvider.ts
+// getPromptsDir is imported from PreviousSessionProvider.ts
 
 /**
  * Sanitize a session name to be a valid git branch name.
@@ -679,17 +683,20 @@ export async function activate(context: vscode.ExtensionContext) {
     }
 
     // Watch for changes to the prompts folder to refresh previous sessions
+    // getPromptsDir returns an absolute path (may be in global storage or repo-relative)
     if (watchPath) {
-        const promptsFolder = getPromptsFolder();
-        const promptsWatcher = vscode.workspace.createFileSystemWatcher(
-            new vscode.RelativePattern(watchPath, `${promptsFolder}/*.txt`)
-        );
+        const promptsDirPath = getPromptsDir(watchPath);
+        if (promptsDirPath) {
+            const promptsWatcher = vscode.workspace.createFileSystemWatcher(
+                new vscode.RelativePattern(promptsDirPath, '*.txt')
+            );
 
-        promptsWatcher.onDidChange(() => previousSessionProvider.refresh());
-        promptsWatcher.onDidCreate(() => previousSessionProvider.refresh());
-        promptsWatcher.onDidDelete(() => previousSessionProvider.refresh());
+            promptsWatcher.onDidChange(() => previousSessionProvider.refresh());
+            promptsWatcher.onDidCreate(() => previousSessionProvider.refresh());
+            promptsWatcher.onDidDelete(() => previousSessionProvider.refresh());
 
-        context.subscriptions.push(promptsWatcher);
+            context.subscriptions.push(promptsWatcher);
+        }
     }
 
     // Watch for worktree folder changes to refresh both active and previous sessions
@@ -753,11 +760,11 @@ export async function activate(context: vscode.ExtensionContext) {
                                 for (const worktree of worktrees) {
                                     const worktreePath = path.join(worktreesDir, worktree);
                                     if (fs.statSync(worktreePath).isDirectory()) {
-                                        await setupStatusHooks(worktreePath);
+                                        await getOrCreateExtensionSettingsFile(worktreePath);
                                         updated++;
                                     }
                                 }
-                                vscode.window.showInformationMessage(`Updated hooks in ${updated} worktree(s).`);
+                                vscode.window.showInformationMessage(`Updated settings files in ${updated} worktree(s).`);
                             } catch (err) {
                                 vscode.window.showErrorMessage(`Failed to update some worktrees: ${getErrorMessage(err)}`);
                             }
@@ -854,14 +861,15 @@ export async function activate(context: vscode.ExtensionContext) {
     });
 
     // 5. Register SETUP STATUS HOOKS Command
+    // This command regenerates the extension settings file with hooks
     let setupHooksDisposable = vscode.commands.registerCommand('claudeWorktrees.setupStatusHooks', async (item?: SessionItem) => {
         if (!item) {
             vscode.window.showErrorMessage('Please right-click on a session to setup status hooks.');
             return;
         }
         try {
-            await setupStatusHooks(item.worktreePath);
-            vscode.window.showInformationMessage(`Status hooks configured for '${item.label}'`);
+            const settingsPath = await getOrCreateExtensionSettingsFile(item.worktreePath);
+            vscode.window.showInformationMessage(`Status hooks configured for '${item.label}' at ${settingsPath}`);
         } catch (err) {
             vscode.window.showErrorMessage(`Failed to setup hooks: ${getErrorMessage(err)}`);
         }
@@ -1363,10 +1371,7 @@ async function createSession(
                 }
             }
 
-            // 5. Setup status hooks before opening Claude (auto-migrate for new sessions)
-            await setupStatusHooks(worktreePath, true);
-
-            // 5b. Add worktree as a project in Project Manager
+            // 5. Add worktree as a project in Project Manager
             // Get sanitized repo name for project naming
             const repoName = getRepoName(workspaceRoot).replace(/[<>:"/\\|?*]/g, '_');
             const projectName = `${repoName}-${trimmedName}`;
@@ -1434,11 +1439,21 @@ async function openClaudeTerminal(taskName: string, worktreePath: string, prompt
 
     terminal.show();
 
-    // C. Auto-start Claude - resume if session ID exists, otherwise start fresh
+    // C. Get or create the extension settings file with hooks
+    let settingsFlag = '';
+    try {
+        const settingsPath = await getOrCreateExtensionSettingsFile(worktreePath);
+        settingsFlag = `--settings "${settingsPath}" `;
+    } catch (err) {
+        console.warn('Claude Lanes: Failed to create extension settings file:', getErrorMessage(err));
+        // Continue without the settings flag - hooks won't work but Claude will still run
+    }
+
+    // D. Auto-start Claude - resume if session ID exists, otherwise start fresh
     const sessionData = getSessionId(worktreePath);
     if (sessionData?.sessionId) {
         // Resume existing session
-        terminal.sendText(`claude --resume ${sessionData.sessionId}`);
+        terminal.sendText(`claude ${settingsFlag}--resume ${sessionData.sessionId}`.trim());
     } else {
         // Build the permission mode flag if not using default
         // Validate permissionMode to prevent command injection from untrusted webview input
@@ -1450,19 +1465,27 @@ async function openClaudeTerminal(taskName: string, worktreePath: string, prompt
         // Combine prompt and acceptance criteria
         const combinedPrompt = combinePromptAndCriteria(prompt, acceptanceCriteria);
         if (combinedPrompt) {
-            // Write prompt to file in main repo for history and to avoid terminal buffer issues
-            // Stored in <repo>/<promptsFolder>/<session-name>.txt for user reference
+            // Write prompt to file for history and to avoid terminal buffer issues
+            // Location depends on settings:
+            // - Default (empty promptsFolder): global storage at globalStorageUri/<repoIdentifier>/prompts/<sessionName>.txt
+            // - User override: repo-relative at <repoRoot>/<promptsFolder>/<sessionName>.txt
             // Derive repo root from worktree path: <repo>/<worktreesFolder>/<session-name>
             const repoRoot = path.dirname(path.dirname(worktreePath));
-            const lanesDir = path.join(repoRoot, getPromptsFolder());
-            await fsPromises.mkdir(lanesDir, { recursive: true });
-            const promptFilePath = path.join(lanesDir, `${taskName}.txt`);
-            await fsPromises.writeFile(promptFilePath, combinedPrompt, 'utf-8');
-            // Pass prompt file content as argument using command substitution
-            terminal.sendText(`claude ${permissionFlag}"$(cat "${promptFilePath}")"`);
+            const promptPathInfo = getPromptsPath(taskName, repoRoot);
+            if (promptPathInfo) {
+                await fsPromises.mkdir(promptPathInfo.needsDir, { recursive: true });
+                await fsPromises.writeFile(promptPathInfo.path, combinedPrompt, 'utf-8');
+                // Pass prompt file content as argument using command substitution
+                terminal.sendText(`claude ${settingsFlag}${permissionFlag}"$(cat "${promptPathInfo.path}")"`);
+            } else {
+                // Fallback: pass prompt directly if path resolution failed
+                // Escape single quotes in the prompt for shell safety
+                const escapedPrompt = combinedPrompt.replace(/'/g, "'\\''");
+                terminal.sendText(`claude ${settingsFlag}${permissionFlag}'${escapedPrompt}'`);
+            }
         } else {
             // Start new session without prompt
-            terminal.sendText(`claude ${permissionFlag}`.trim());
+            terminal.sendText(`claude ${settingsFlag}${permissionFlag}`.trim());
         }
     }
 }
@@ -1573,51 +1596,39 @@ function getRelativeFilePath(configKey: string): string {
 }
 
 /**
- * Helper to check if our status hook already exists in settings
- */
-function hasStatusHook(settings: ClaudeSettings): boolean {
-    if (!settings.hooks) {return false;}
-    const hookTypes = ['Stop', 'UserPromptSubmit', 'Notification', 'PreToolUse'];
-    return hookTypes.some(hookType => {
-        const entries = settings.hooks?.[hookType];
-        if (!entries) {return false;}
-        return entries.some(entry =>
-            entry.hooks.some(h => h.command.includes('.claude-status'))
-        );
-    });
-}
-
-/**
- * Helper to check if our session hook already exists in settings
- */
-function hasSessionHook(settings: ClaudeSettings): boolean {
-    if (!settings.hooks) {return false;}
-    const entries = settings.hooks.SessionStart;
-    if (!entries) {return false;}
-    return entries.some(entry =>
-        entry.hooks.some(h => h.command.includes('.claude-session'))
-    );
-}
-
-/**
- * Sets up Claude hooks for status file updates in a worktree.
- * Always writes hooks to settings.local.json.
- * If hooks exist in settings.json, offers to migrate them to settings.local.json.
- * Uses atomic writes to prevent race conditions.
- * When global storage is enabled, uses absolute paths to the global storage directory.
+ * Creates or updates the extension settings file in global storage.
+ * This file contains hooks for status tracking and session ID capture.
+ * The file is stored at: globalStorageUri/<repo-identifier>/<session-name>/claude-settings.json
  *
  * @param worktreePath Path to the worktree
- * @param isNewSession If true, auto-migrate without showing dialogs (for new session creation).
- *                     If false, show migration dialog (for manual "Setup Status Hooks" command).
+ * @returns The absolute path to the settings file
  */
-async function setupStatusHooks(worktreePath: string, isNewSession: boolean = false): Promise<void> {
-    const claudeDir = path.join(worktreePath, '.claude');
-    const settingsPath = path.join(claudeDir, 'settings.json');
-    const settingsLocalPath = path.join(claudeDir, 'settings.local.json');
+export async function getOrCreateExtensionSettingsFile(worktreePath: string): Promise<string> {
+    // Get the session name from the worktree path
+    const sessionName = getSessionNameFromWorktree(worktreePath);
 
-    // Check if global storage is enabled
+    // Validate session name to prevent path traversal and command injection
+    // Session names should only contain [a-zA-Z0-9_\-./] (enforced by sanitizeSessionName at creation)
+    if (!sessionName || sessionName.includes('..') || !/^[a-zA-Z0-9_\-./]+$/.test(sessionName)) {
+        throw new Error(`Invalid session name derived from worktree path: ${sessionName}`);
+    }
+
+    const globalStorageUriObj = getGlobalStorageUri();
+    const baseRepoPath = getBaseRepoPathForStorage();
+
+    if (!globalStorageUriObj || !baseRepoPath) {
+        throw new Error('Global storage not initialized. Cannot create extension settings file.');
+    }
+
+    const repoIdentifier = getRepoIdentifier(baseRepoPath);
+    const settingsDir = path.join(globalStorageUriObj.fsPath, repoIdentifier, sessionName);
+    const settingsFilePath = path.join(settingsDir, 'claude-settings.json');
+
+    // Ensure the directory exists
+    await fsPromises.mkdir(settingsDir, { recursive: true });
+
+    // Determine status and session file paths
     const useGlobalStorage = isGlobalStorageEnabled();
-
     let statusFilePath: string;
     let sessionFilePath: string;
 
@@ -1630,9 +1641,8 @@ async function setupStatusHooks(worktreePath: string, isNewSession: boolean = fa
             statusFilePath = globalStatusPath;
             sessionFilePath = globalSessionPath;
 
-            // Ensure the global storage directories exist
+            // Ensure the global storage directory exists (both files are in same directory)
             await fsPromises.mkdir(path.dirname(globalStatusPath), { recursive: true });
-            await fsPromises.mkdir(path.dirname(globalSessionPath), { recursive: true });
         } else {
             // Fall back to relative paths if global storage not initialized
             const statusRelPath = getRelativeFilePath('claudeStatusPath');
@@ -1660,148 +1670,7 @@ async function setupStatusHooks(worktreePath: string, isNewSession: boolean = fa
         }
     }
 
-    // Ensure .claude directory exists
-    await fsPromises.mkdir(claudeDir, { recursive: true });
-
-    // Check if hooks already exist in settings.json (deprecated location)
-    let existingSettings: ClaudeSettings = {};
-    let hooksExistInSettingsJson = false;
-    try {
-        const content = await fsPromises.readFile(settingsPath, 'utf-8');
-        existingSettings = JSON.parse(content);
-        hooksExistInSettingsJson = hasStatusHook(existingSettings) || hasSessionHook(existingSettings);
-    } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-            // File exists but is invalid JSON
-            console.warn('Claude Lanes: settings.json is invalid');
-        }
-        // File doesn't exist - that's ok
-    }
-
-    // Default to settings.local.json
-    let targetPath = settingsLocalPath;
-
-    // If hooks exist in settings.json, handle migration
-    if (hooksExistInSettingsJson) {
-        // For new sessions, auto-migrate silently to avoid blocking dialogs
-        // For manual "Setup Status Hooks" command, ask the user via QuickPick (more visible than notification)
-        let shouldMigrate = isNewSession; // Auto-migrate for new sessions
-
-        if (!isNewSession) {
-            // Show QuickPick dialog (more visible than notification in bottom-right)
-            const choice = await vscode.window.showQuickPick(
-                [
-                    {
-                        label: 'Yes, migrate to settings.local.json',
-                        description: 'Move hooks to settings.local.json (recommended)',
-                        action: 'migrate'
-                    },
-                    {
-                        label: 'No, keep in settings.json',
-                        description: 'Continue using the deprecated location',
-                        action: 'keep'
-                    }
-                ],
-                {
-                    placeHolder: 'Claude Lanes hooks found in settings.json (deprecated). Migrate?',
-                    title: 'Migrate Hooks to settings.local.json'
-                }
-            );
-
-            if (choice?.action === 'migrate') {
-                shouldMigrate = true;
-            } else if (choice?.action === 'keep') {
-                // User chose to keep using settings.json
-                targetPath = settingsPath;
-            }
-            // If dialog cancelled, default to settings.local.json but don't remove from settings.json
-        }
-
-        if (shouldMigrate) {
-            // Notify user about auto-migration (non-blocking)
-            if (isNewSession) {
-                vscode.window.showInformationMessage(
-                    'Claude Lanes: Migrated session tracking hooks from settings.json to settings.local.json'
-                );
-            }
-
-            // Remove hooks from settings.json
-            if (existingSettings.hooks) {
-                // Remove our hooks from settings.json
-                const hookTypes = ['SessionStart', 'Stop', 'UserPromptSubmit', 'Notification', 'PreToolUse'];
-                for (const hookType of hookTypes) {
-                    const entries = existingSettings.hooks[hookType];
-                    if (entries) {
-                        existingSettings.hooks[hookType] = entries
-                            .map(entry => ({
-                                ...entry,
-                                hooks: entry.hooks.filter(h =>
-                                    !h.command.includes('.claude-status') &&
-                                    !h.command.includes('.claude-session')
-                                )
-                            }))
-                            .filter(entry => entry.hooks.length > 0);
-
-                        // Remove empty arrays
-                        if (existingSettings.hooks[hookType].length === 0) {
-                            delete existingSettings.hooks[hookType];
-                        }
-                    }
-                }
-
-                // Remove hooks object if empty
-                if (Object.keys(existingSettings.hooks).length === 0) {
-                    delete existingSettings.hooks;
-                }
-
-                // Write cleaned settings.json (or delete if empty)
-                if (Object.keys(existingSettings).length === 0) {
-                    await fsPromises.unlink(settingsPath).catch(() => {});
-                } else {
-                    const tempSettingsPath = path.join(claudeDir, `settings.json.${Date.now()}.tmp`);
-                    await fsPromises.writeFile(tempSettingsPath, JSON.stringify(existingSettings, null, 2), 'utf-8');
-                    await fsPromises.rename(tempSettingsPath, settingsPath);
-                }
-            }
-            // targetPath remains settingsLocalPath
-        }
-    }
-
-    const tempPath = path.join(claudeDir, `${path.basename(targetPath)}.${Date.now()}.tmp`);
-
-    // Read existing settings from the target file
-    let settings: ClaudeSettings = {};
-    try {
-        const content = await fsPromises.readFile(targetPath, 'utf-8');
-        settings = JSON.parse(content);
-    } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-            // File exists but is invalid JSON
-            if (isNewSession) {
-                // For new sessions, auto-overwrite to avoid blocking dialogs
-                console.warn(`Claude Lanes: Overwriting invalid ${path.basename(targetPath)} for new session`);
-            } else {
-                // For manual setup, ask user
-                const fileName = path.basename(targetPath);
-                const answer = await vscode.window.showWarningMessage(
-                    `Existing .claude/${fileName} is invalid. Overwrite?`,
-                    'Overwrite',
-                    'Cancel'
-                );
-                if (answer !== 'Overwrite') {
-                    throw new Error('Setup cancelled - invalid existing settings');
-                }
-            }
-        }
-        // File doesn't exist or user chose to overwrite - start fresh
-    }
-
-    // Initialize hooks object if needed
-    if (!settings.hooks) {
-        settings.hooks = {};
-    }
-
-    // Define our status hooks with configured paths
+    // Define the hooks
     const statusWriteWaiting = {
         type: 'command',
         command: `echo '{"status":"waiting_for_user"}' > "${statusFilePath}"`
@@ -1812,66 +1681,35 @@ async function setupStatusHooks(worktreePath: string, isNewSession: boolean = fa
         command: `echo '{"status":"working"}' > "${statusFilePath}"`
     };
 
-    // Define our session ID capture hook with configured path
     // Session ID is provided via stdin as JSON: {"session_id": "...", ...}
     const sessionIdCapture = {
         type: 'command',
         command: `jq -r --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{sessionId: .session_id, timestamp: $ts}' > "${sessionFilePath}"`
     };
 
-    // Helper to remove existing hooks (used when updating paths)
-    const removeStatusHooks = (entries: HookEntry[] | undefined): HookEntry[] => {
-        if (!entries) {return [];}
-        return entries.map(entry => ({
-            ...entry,
-            hooks: entry.hooks.filter(h => !h.command.includes('.claude-status'))
-        })).filter(entry => entry.hooks.length > 0);
+    // Build the settings object
+    const settings: ClaudeSettings = {
+        hooks: {
+            SessionStart: [{ hooks: [sessionIdCapture] }],
+            Stop: [{ hooks: [statusWriteWaiting] }],
+            UserPromptSubmit: [{ hooks: [statusWriteWorking] }],
+            Notification: [{ matcher: 'permission_prompt', hooks: [statusWriteWaiting] }],
+            PreToolUse: [{ matcher: '.*', hooks: [statusWriteWorking] }]
+        }
     };
 
-    const removeSessionHooks = (entries: HookEntry[] | undefined): HookEntry[] => {
-        if (!entries) {return [];}
-        return entries.map(entry => ({
-            ...entry,
-            hooks: entry.hooks.filter(h => !h.command.includes('.claude-session'))
-        })).filter(entry => entry.hooks.length > 0);
-    };
+    // Write the settings file atomically with cleanup on failure
+    const tempPath = path.join(settingsDir, `claude-settings.json.${Date.now()}.tmp`);
+    try {
+        await fsPromises.writeFile(tempPath, JSON.stringify(settings, null, 2), 'utf-8');
+        await fsPromises.rename(tempPath, settingsFilePath);
+    } catch (err) {
+        // Clean up temp file on failure
+        await fsPromises.unlink(tempPath).catch(() => {});
+        throw err;
+    }
 
-    // Remove existing hooks and add new ones (to handle path changes)
-    // Add SessionStart hook (fires when Claude session starts = capture session ID)
-    settings.hooks.SessionStart = removeSessionHooks(settings.hooks.SessionStart);
-    settings.hooks.SessionStart.push({
-        hooks: [sessionIdCapture]
-    });
-
-    // Add Stop hook (fires when Claude finishes responding = waiting for user)
-    settings.hooks.Stop = removeStatusHooks(settings.hooks.Stop);
-    settings.hooks.Stop.push({
-        hooks: [statusWriteWaiting]
-    });
-
-    // Add UserPromptSubmit hook (fires when user submits = Claude starts working)
-    settings.hooks.UserPromptSubmit = removeStatusHooks(settings.hooks.UserPromptSubmit);
-    settings.hooks.UserPromptSubmit.push({
-        hooks: [statusWriteWorking]
-    });
-
-    // Add Notification hook for permission prompts (fires when Claude asks for permission)
-    settings.hooks.Notification = removeStatusHooks(settings.hooks.Notification);
-    settings.hooks.Notification.push({
-        matcher: 'permission_prompt',
-        hooks: [statusWriteWaiting]
-    });
-
-    // Add PreToolUse hook (fires before any tool = Claude is working)
-    settings.hooks.PreToolUse = removeStatusHooks(settings.hooks.PreToolUse);
-    settings.hooks.PreToolUse.push({
-        matcher: '.*',
-        hooks: [statusWriteWorking]
-    });
-
-    // Write updated settings atomically (write to temp, then rename)
-    await fsPromises.writeFile(tempPath, JSON.stringify(settings, null, 2), 'utf-8');
-    await fsPromises.rename(tempPath, targetPath);
+    return settingsFilePath;
 }
 
 /**

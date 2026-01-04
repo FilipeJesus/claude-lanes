@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { PreviousSessionItem, PreviousSessionProvider, getPromptsFolder } from '../PreviousSessionProvider';
+import { PreviousSessionItem, PreviousSessionProvider, getPromptsDir } from '../PreviousSessionProvider';
 
 /**
  * Test suite for PreviousSessionProvider and related functionality.
@@ -347,7 +347,8 @@ suite('PreviousSessionProvider', () => {
 	});
 });
 
-suite('getPromptsFolder', () => {
+suite('getPromptsDir', () => {
+	const testRepoRoot = '/test/repo';
 
 	teardown(async () => {
 		// Reset configuration after each test
@@ -355,67 +356,68 @@ suite('getPromptsFolder', () => {
 		await config.update('promptsFolder', undefined, vscode.ConfigurationTarget.Global);
 	});
 
-	test('should return default ".claude/lanes" when not configured', async () => {
+	test('should return legacy path when not configured and global storage not initialized', async () => {
 		// Arrange: Ensure configuration is not set
+		// Note: In test environment, global storage is not initialized, so it falls back to legacy
 		const config = vscode.workspace.getConfiguration('claudeLanes');
 		await config.update('promptsFolder', undefined, vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
-		// Assert
+		// Assert - falls back to legacy .claude/lanes when global storage not initialized
 		assert.strictEqual(
 			result,
-			'.claude/lanes',
-			'Should return default ".claude/lanes" when not configured'
+			path.join(testRepoRoot, '.claude', 'lanes'),
+			'Should return legacy path when global storage not initialized'
 		);
 	});
 
-	test('should return default when configuration is empty string', async () => {
+	test('should return legacy path when configuration is empty string', async () => {
 		// Arrange
 		const config = vscode.workspace.getConfiguration('claudeLanes');
 		await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
 		// Assert
 		assert.strictEqual(
 			result,
-			'.claude/lanes',
-			'Should return default when config is empty string'
+			path.join(testRepoRoot, '.claude', 'lanes'),
+			'Should return legacy path when config is empty string'
 		);
 	});
 
-	test('should return default when configuration is only whitespace', async () => {
+	test('should return legacy path when configuration is only whitespace', async () => {
 		// Arrange
 		const config = vscode.workspace.getConfiguration('claudeLanes');
 		await config.update('promptsFolder', '   ', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
 		// Assert
 		assert.strictEqual(
 			result,
-			'.claude/lanes',
-			'Should return default when config is only whitespace'
+			path.join(testRepoRoot, '.claude', 'lanes'),
+			'Should return legacy path when config is only whitespace'
 		);
 	});
 
-	test('should return configured value when valid path is set', async () => {
+	test('should return configured path when valid path is set', async () => {
 		// Arrange
 		const config = vscode.workspace.getConfiguration('claudeLanes');
 		await config.update('promptsFolder', 'custom/prompts', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
 		// Assert
 		assert.strictEqual(
 			result,
-			'custom/prompts',
-			'Should return the configured value'
+			path.join(testRepoRoot, 'custom/prompts'),
+			'Should return the configured path joined with repoRoot'
 		);
 	});
 
@@ -425,46 +427,46 @@ suite('getPromptsFolder', () => {
 		await config.update('promptsFolder', '  custom/prompts  ', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
 		// Assert
 		assert.strictEqual(
 			result,
-			'custom/prompts',
+			path.join(testRepoRoot, 'custom/prompts'),
 			'Should trim whitespace from configured path'
 		);
 	});
 
-	test('should reject path with parent directory traversal (..)', async () => {
+	test('should reject path with parent directory traversal (..) and use global storage fallback', async () => {
 		// Arrange
 		const config = vscode.workspace.getConfiguration('claudeLanes');
 		await config.update('promptsFolder', '../../../etc', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
-		// Assert
+		// Assert - falls back to legacy when global storage not initialized
 		assert.strictEqual(
 			result,
-			'.claude/lanes',
-			'Should reject path traversal and return default'
+			path.join(testRepoRoot, '.claude', 'lanes'),
+			'Should reject path traversal and fall back to legacy path'
 		);
 	});
 
-	test('should strip leading slashes from absolute paths making them relative', async () => {
+	test('should strip leading slashes and use as relative path', async () => {
 		// Arrange
 		// Note: The implementation strips leading/trailing slashes before checking isAbsolute,
 		// so '/etc/passwd' becomes 'etc/passwd' (a relative path) rather than being rejected.
 		const config = vscode.workspace.getConfiguration('claudeLanes');
-		await config.update('promptsFolder', '/etc/passwd', vscode.ConfigurationTarget.Global);
+		await config.update('promptsFolder', '/custom/prompts', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
 		// Assert
 		assert.strictEqual(
 			result,
-			'etc/passwd',
+			path.join(testRepoRoot, 'custom/prompts'),
 			'Absolute paths are transformed to relative by stripping leading slashes'
 		);
 	});
@@ -475,12 +477,12 @@ suite('getPromptsFolder', () => {
 		await config.update('promptsFolder', 'custom\\prompts\\folder', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
 		// Assert
 		assert.strictEqual(
 			result,
-			'custom/prompts/folder',
+			path.join(testRepoRoot, 'custom/prompts/folder'),
 			'Should normalize backslashes to forward slashes'
 		);
 	});
@@ -491,12 +493,12 @@ suite('getPromptsFolder', () => {
 		await config.update('promptsFolder', '/custom/prompts/', vscode.ConfigurationTarget.Global);
 
 		// Act
-		const result = getPromptsFolder();
+		const result = getPromptsDir(testRepoRoot);
 
 		// Assert
 		assert.strictEqual(
 			result,
-			'custom/prompts',
+			path.join(testRepoRoot, 'custom/prompts'),
 			'Should remove leading and trailing slashes'
 		);
 	});
