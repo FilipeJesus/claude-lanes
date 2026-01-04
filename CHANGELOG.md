@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Platform support section (macOS/Linux supported, Windows not yet)
 - Dev Containers documentation in marketplace README
 
+### Fixed
+
+- Release script now publishes pre-built VSIX instead of rebuilding (ensures correct README)
+
 ### Removed
 
 - Old icon files replaced with new logo variants

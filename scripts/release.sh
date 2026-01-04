@@ -83,9 +83,9 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
   exit 0
 fi
 
-# Publish
+# Publish the pre-built VSIX (don't rebuild, which would use wrong README)
 echo "🚀 Publishing to VS Code Marketplace..."
-npx vsce publish
+npx vsce publish --packagePath "$VSIX_FILE"
 
 # Commit and tag
 echo "📝 Committing version bump..."
