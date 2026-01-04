@@ -13,17 +13,17 @@ suite('Edge Cases Test Suite', () => {
 
 	// Create a temp directory structure before tests
 	setup(async () => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-edge-cases-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-edge-cases-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 		// Disable global storage for these tests since we're testing worktree-based file paths
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 	});
 
 	// Clean up after each test
 	teardown(async () => {
 		// Reset useGlobalStorage to default
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', undefined, vscode.ConfigurationTarget.Global);
 		fs.rmSync(tempDir, { recursive: true, force: true });
 	});

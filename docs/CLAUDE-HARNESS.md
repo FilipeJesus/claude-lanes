@@ -44,7 +44,7 @@ When starting a new task, create a `features.json` file to track all features:
 
 ## Required Fields
 
-Claude Lanes expects the following structure in `features.json`:
+Lanes expects the following structure in `features.json`:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -53,7 +53,7 @@ Claude Lanes expects the following structure in `features.json`:
 | `features[].description` | string | Yes | What needs to be implemented |
 | `features[].passes` | boolean | Yes | Whether the feature is complete |
 
-> **Note:** Your harness can include additional fields (e.g., `priority`, `dependencies`, `assignee`) - Claude Lanes only requires the fields listed above. Feel free to extend the schema to suit your workflow.
+> **Note:** Your harness can include additional fields (e.g., `priority`, `dependencies`, `assignee`) - Lanes only requires the fields listed above. Feel free to extend the schema to suit your workflow.
 
 ## Example Workflow
 

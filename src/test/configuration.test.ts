@@ -12,7 +12,7 @@ import { getRepoName } from '../extension';
  * for the requested property key.
  *
  * @param config - The configuration array from package.json contributes.configuration
- * @param key - The full property key (e.g., 'claudeLanes.featuresJsonPath')
+ * @param key - The full property key (e.g., 'lanes.featuresJsonPath')
  * @returns The property configuration object, or undefined if not found
  */
 function getConfigProperty(config: any[], key: string): any {
@@ -42,7 +42,7 @@ suite('Configuration Test Suite', () => {
 
 	// Create a temp directory structure before tests
 	setup(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-config-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-config-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 	});
 
@@ -61,7 +61,7 @@ suite('Configuration Test Suite', () => {
 
 		teardown(async () => {
 			// Reset all configuration values to default after each test
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', undefined, vscode.ConfigurationTarget.Global);
 			await config.update('testsJsonPath', undefined, vscode.ConfigurationTarget.Global);
 			await config.update('claudeSessionPath', undefined, vscode.ConfigurationTarget.Global);
@@ -71,7 +71,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return worktree root path for features.json when featuresJsonPath config is empty', async () => {
 			// Arrange: Ensure config is empty (default)
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -87,7 +87,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return custom path for features.json when featuresJsonPath is configured', async () => {
 			// Arrange: Set custom path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -103,7 +103,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return worktree root path for tests.json when testsJsonPath config is empty', async () => {
 			// Arrange: Ensure config is empty (default)
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('testsJsonPath', '', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -119,7 +119,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return custom path for tests.json when testsJsonPath is configured', async () => {
 			// Arrange: Set custom path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('testsJsonPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -135,11 +135,11 @@ suite('Configuration Test Suite', () => {
 
 		test('should be able to read claudeLanes configuration values', async () => {
 			// Arrange: Set a configuration value
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', 'custom/path', vscode.ConfigurationTarget.Global);
 
 			// Act: Read the configuration back
-			const readConfig = vscode.workspace.getConfiguration('claudeLanes');
+			const readConfig = vscode.workspace.getConfiguration('lanes');
 			const featuresPath = readConfig.get<string>('featuresJsonPath');
 
 			// Assert
@@ -162,10 +162,10 @@ suite('Configuration Test Suite', () => {
 			);
 
 			// Assert: featuresJsonPath configuration exists with correct schema
-			const featuresConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.featuresJsonPath');
+			const featuresConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.featuresJsonPath');
 			assert.ok(
 				featuresConfig,
-				'package.json should have claudeLanes.featuresJsonPath configuration'
+				'package.json should have lanes.featuresJsonPath configuration'
 			);
 			assert.strictEqual(
 				featuresConfig.type,
@@ -185,10 +185,10 @@ suite('Configuration Test Suite', () => {
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
 			// Assert: testsJsonPath configuration exists with correct schema
-			const testsConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.testsJsonPath');
+			const testsConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.testsJsonPath');
 			assert.ok(
 				testsConfig,
-				'package.json should have claudeLanes.testsJsonPath configuration'
+				'package.json should have lanes.testsJsonPath configuration'
 			);
 			assert.strictEqual(
 				testsConfig.type,
@@ -204,7 +204,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should use configured featuresJsonPath in getFeatureStatus', async () => {
 			// Arrange: Set custom path and create features.json in that location
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Create the .claude directory and features.json in it
@@ -227,7 +227,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return null when features.json is in root but config points elsewhere', async () => {
 			// Arrange: Set custom path but put features.json in root
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Create features.json in root (wrong location per config)
@@ -248,7 +248,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should trim whitespace from configured paths', async () => {
 			// Arrange: Set custom path with whitespace
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '  .claude  ', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -264,7 +264,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should reject paths with parent directory traversal (..)', async () => {
 			// Arrange: Set malicious path with parent directory traversal
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '../../etc', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -280,7 +280,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should reject absolute paths', async () => {
 			// Arrange: Set absolute path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '/etc/passwd', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -296,7 +296,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should reject tests.json paths with parent directory traversal', async () => {
 			// Arrange: Set malicious path with parent directory traversal
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('testsJsonPath', '../../../tmp', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -312,7 +312,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should convert Windows backslashes to forward slashes', async () => {
 			// Arrange: Set path with Windows backslashes
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', '.claude\\subdir', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -328,7 +328,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should allow nested relative paths without traversal', async () => {
 			// Arrange: Set valid nested path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', 'config/claude/tracking', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -350,13 +350,13 @@ suite('Configuration Test Suite', () => {
 		setup(async () => {
 			tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'config-session-status-paths-test-'));
 			// Disable global storage for these tests since we're testing worktree-based path resolution
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 		});
 
 		teardown(async () => {
 			// Reset all configuration values to default after each test
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('featuresJsonPath', undefined, vscode.ConfigurationTarget.Global);
 			await config.update('testsJsonPath', undefined, vscode.ConfigurationTarget.Global);
 			await config.update('claudeSessionPath', undefined, vscode.ConfigurationTarget.Global);
@@ -367,7 +367,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return worktree root path for .claude-session when claudeSessionPath config is empty', async () => {
 			// Arrange: Ensure config is empty (default)
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeSessionPath', '', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -383,7 +383,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return custom path for .claude-session when claudeSessionPath is configured', async () => {
 			// Arrange: Set custom path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeSessionPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -399,7 +399,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return worktree root path for .claude-status when claudeStatusPath config is empty', async () => {
 			// Arrange: Ensure config is empty (default)
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeStatusPath', '', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -415,7 +415,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should return custom path for .claude-status when claudeStatusPath is configured', async () => {
 			// Arrange: Set custom path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeStatusPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -431,7 +431,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should read session ID from configured claudeSessionPath location', async () => {
 			// Arrange: Set custom path and create .claude-session in that location
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeSessionPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Create the .claude directory and .claude-session in it
@@ -454,7 +454,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should read Claude status from configured claudeStatusPath location', async () => {
 			// Arrange: Set custom path and create .claude-status in that location
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeStatusPath', '.claude', vscode.ConfigurationTarget.Global);
 
 			// Create the .claude directory and .claude-status in it
@@ -479,7 +479,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should reject claudeSessionPath with parent directory traversal and fall back to worktree root', async () => {
 			// Arrange: Set malicious path with parent directory traversal
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeSessionPath', '../../etc', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -495,7 +495,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should reject claudeStatusPath with parent directory traversal and fall back to worktree root', async () => {
 			// Arrange: Set malicious path with parent directory traversal
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeStatusPath', '../../../tmp', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -511,7 +511,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should reject claudeSessionPath with absolute path and fall back to worktree root', async () => {
 			// Arrange: Set absolute path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeSessionPath', '/etc/passwd', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -527,7 +527,7 @@ suite('Configuration Test Suite', () => {
 
 		test('should reject claudeStatusPath with absolute path and fall back to worktree root', async () => {
 			// Arrange: Set absolute path
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('claudeStatusPath', '/tmp/evil', vscode.ConfigurationTarget.Global);
 
 			// Act
@@ -553,10 +553,10 @@ suite('Configuration Test Suite', () => {
 			);
 
 			// Assert: claudeSessionPath configuration exists with correct schema
-			const sessionConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.claudeSessionPath');
+			const sessionConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.claudeSessionPath');
 			assert.ok(
 				sessionConfig,
-				'package.json should have claudeLanes.claudeSessionPath configuration'
+				'package.json should have lanes.claudeSessionPath configuration'
 			);
 			assert.strictEqual(
 				sessionConfig.type,
@@ -576,10 +576,10 @@ suite('Configuration Test Suite', () => {
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
 			// Assert: claudeStatusPath configuration exists with correct schema
-			const statusConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.claudeStatusPath');
+			const statusConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.claudeStatusPath');
 			assert.ok(
 				statusConfig,
-				'package.json should have claudeLanes.claudeStatusPath configuration'
+				'package.json should have lanes.claudeStatusPath configuration'
 			);
 			assert.strictEqual(
 				statusConfig.type,
@@ -606,7 +606,7 @@ suite('Configuration Test Suite', () => {
 
 		teardown(async () => {
 			// Reset global storage configuration
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('useGlobalStorage', undefined, vscode.ConfigurationTarget.Global);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 			fs.rmSync(globalStorageDir, { recursive: true, force: true });
@@ -829,7 +829,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return worktree-relative path when useGlobalStorage is false', async () => {
 				// Arrange: Ensure global storage is disabled
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 
 				// Initialize global storage context (should not affect paths when disabled)
@@ -849,7 +849,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should NOT return global storage path for getFeaturesJsonPath even when useGlobalStorage is true', async () => {
 				// Arrange: Enable global storage
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', true, vscode.ConfigurationTarget.Global);
 
 				// Initialize global storage context
@@ -878,7 +878,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return global storage path when useGlobalStorage is true for getClaudeStatusPath', async () => {
 				// Arrange: Enable global storage
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', true, vscode.ConfigurationTarget.Global);
 
 				// Initialize global storage context
@@ -903,7 +903,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return global storage path when useGlobalStorage is true for getClaudeSessionPath', async () => {
 				// Arrange: Enable global storage
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', true, vscode.ConfigurationTarget.Global);
 
 				// Initialize global storage context
@@ -928,7 +928,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should NOT return global storage path for getTestsJsonPath even when useGlobalStorage is true', async () => {
 				// Arrange: Enable global storage
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', true, vscode.ConfigurationTarget.Global);
 
 				// Initialize global storage context
@@ -960,7 +960,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return true when useGlobalStorage is not set (default)', async () => {
 				// Arrange: Reset to default
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', undefined, vscode.ConfigurationTarget.Global);
 
 				// Act
@@ -972,7 +972,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return true when useGlobalStorage is true', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', true, vscode.ConfigurationTarget.Global);
 
 				// Act
@@ -984,7 +984,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return false when useGlobalStorage is explicitly false', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 
 				// Act
@@ -1010,10 +1010,10 @@ suite('Configuration Test Suite', () => {
 			);
 
 			// Assert: useGlobalStorage configuration exists with correct schema
-			const globalStorageConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.useGlobalStorage');
+			const globalStorageConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.useGlobalStorage');
 			assert.ok(
 				globalStorageConfig,
-				'package.json should have claudeLanes.useGlobalStorage configuration'
+				'package.json should have lanes.useGlobalStorage configuration'
 			);
 			assert.strictEqual(
 				globalStorageConfig.type,
@@ -1032,7 +1032,7 @@ suite('Configuration Test Suite', () => {
 			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-			const globalStorageConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.useGlobalStorage');
+			const globalStorageConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.useGlobalStorage');
 
 			assert.ok(
 				globalStorageConfig.description,
@@ -1079,9 +1079,9 @@ suite('Configuration Test Suite', () => {
 
 			// Assert: sections should have correct titles
 			const expectedTitles = [
-				'Claude Lanes: General',
-				'Claude Lanes: Git',
-				'Claude Lanes: Advanced'
+				'Lanes: General',
+				'Lanes: Git',
+				'Lanes: Advanced'
 			];
 
 			const actualTitles = config.map((section: any) => section.title);
@@ -1101,29 +1101,29 @@ suite('Configuration Test Suite', () => {
 			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-			const generalSection = getConfigSection(packageJson.contributes.configuration, 'Claude Lanes: General');
+			const generalSection = getConfigSection(packageJson.contributes.configuration, 'Lanes: General');
 
 			// Assert: General section should exist
 			assert.ok(generalSection, 'General section should exist');
 
 			// Assert: General section should contain worktreesFolder and promptsFolder
 			assert.ok(
-				generalSection.properties?.['claudeLanes.worktreesFolder'],
+				generalSection.properties?.['lanes.worktreesFolder'],
 				'General section should contain worktreesFolder'
 			);
 			assert.ok(
-				generalSection.properties?.['claudeLanes.promptsFolder'],
+				generalSection.properties?.['lanes.promptsFolder'],
 				'General section should contain promptsFolder'
 			);
 
 			// Assert: Settings should have correct order
 			assert.strictEqual(
-				generalSection.properties['claudeLanes.worktreesFolder'].order,
+				generalSection.properties['lanes.worktreesFolder'].order,
 				1,
 				'worktreesFolder should have order 1'
 			);
 			assert.strictEqual(
-				generalSection.properties['claudeLanes.promptsFolder'].order,
+				generalSection.properties['lanes.promptsFolder'].order,
 				2,
 				'promptsFolder should have order 2'
 			);
@@ -1134,29 +1134,29 @@ suite('Configuration Test Suite', () => {
 			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-			const gitSection = getConfigSection(packageJson.contributes.configuration, 'Claude Lanes: Git');
+			const gitSection = getConfigSection(packageJson.contributes.configuration, 'Lanes: Git');
 
 			// Assert: Git section should exist
 			assert.ok(gitSection, 'Git section should exist');
 
 			// Assert: Git section should contain baseBranch and includeUncommittedChanges
 			assert.ok(
-				gitSection.properties?.['claudeLanes.baseBranch'],
+				gitSection.properties?.['lanes.baseBranch'],
 				'Git section should contain baseBranch'
 			);
 			assert.ok(
-				gitSection.properties?.['claudeLanes.includeUncommittedChanges'],
+				gitSection.properties?.['lanes.includeUncommittedChanges'],
 				'Git section should contain includeUncommittedChanges'
 			);
 
 			// Assert: Settings should have correct order
 			assert.strictEqual(
-				gitSection.properties['claudeLanes.baseBranch'].order,
+				gitSection.properties['lanes.baseBranch'].order,
 				1,
 				'baseBranch should have order 1'
 			);
 			assert.strictEqual(
-				gitSection.properties['claudeLanes.includeUncommittedChanges'].order,
+				gitSection.properties['lanes.includeUncommittedChanges'].order,
 				2,
 				'includeUncommittedChanges should have order 2'
 			);
@@ -1167,18 +1167,18 @@ suite('Configuration Test Suite', () => {
 			const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
 			const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-			const advancedSection = getConfigSection(packageJson.contributes.configuration, 'Claude Lanes: Advanced');
+			const advancedSection = getConfigSection(packageJson.contributes.configuration, 'Lanes: Advanced');
 
 			// Assert: Advanced section should exist
 			assert.ok(advancedSection, 'Advanced section should exist');
 
 			// Assert: Advanced section should contain all expected settings
 			const expectedSettings = [
-				'claudeLanes.useGlobalStorage',
-				'claudeLanes.claudeSessionPath',
-				'claudeLanes.claudeStatusPath',
-				'claudeLanes.featuresJsonPath',
-				'claudeLanes.testsJsonPath'
+				'lanes.useGlobalStorage',
+				'lanes.claudeSessionPath',
+				'lanes.claudeStatusPath',
+				'lanes.featuresJsonPath',
+				'lanes.testsJsonPath'
 			];
 
 			for (const setting of expectedSettings) {
@@ -1190,27 +1190,27 @@ suite('Configuration Test Suite', () => {
 
 			// Assert: Settings should have correct order (1-5)
 			assert.strictEqual(
-				advancedSection.properties['claudeLanes.useGlobalStorage'].order,
+				advancedSection.properties['lanes.useGlobalStorage'].order,
 				1,
 				'useGlobalStorage should have order 1'
 			);
 			assert.strictEqual(
-				advancedSection.properties['claudeLanes.claudeSessionPath'].order,
+				advancedSection.properties['lanes.claudeSessionPath'].order,
 				2,
 				'claudeSessionPath should have order 2'
 			);
 			assert.strictEqual(
-				advancedSection.properties['claudeLanes.claudeStatusPath'].order,
+				advancedSection.properties['lanes.claudeStatusPath'].order,
 				3,
 				'claudeStatusPath should have order 3'
 			);
 			assert.strictEqual(
-				advancedSection.properties['claudeLanes.featuresJsonPath'].order,
+				advancedSection.properties['lanes.featuresJsonPath'].order,
 				4,
 				'featuresJsonPath should have order 4'
 			);
 			assert.strictEqual(
-				advancedSection.properties['claudeLanes.testsJsonPath'].order,
+				advancedSection.properties['lanes.testsJsonPath'].order,
 				5,
 				'testsJsonPath should have order 5'
 			);
@@ -1226,63 +1226,63 @@ suite('Configuration Test Suite', () => {
 			const config = packageJson.contributes.configuration;
 
 			// Test each setting's default value
-			const worktreesFolder = getConfigProperty(config, 'claudeLanes.worktreesFolder');
+			const worktreesFolder = getConfigProperty(config, 'lanes.worktreesFolder');
 			assert.strictEqual(
 				worktreesFolder.default,
 				'.worktrees',
 				'worktreesFolder should default to .worktrees'
 			);
 
-			const promptsFolder = getConfigProperty(config, 'claudeLanes.promptsFolder');
+			const promptsFolder = getConfigProperty(config, 'lanes.promptsFolder');
 			assert.strictEqual(
 				promptsFolder.default,
 				'',
 				'promptsFolder should default to empty string (uses global storage)'
 			);
 
-			const baseBranch = getConfigProperty(config, 'claudeLanes.baseBranch');
+			const baseBranch = getConfigProperty(config, 'lanes.baseBranch');
 			assert.strictEqual(
 				baseBranch.default,
 				'',
 				'baseBranch should default to empty string'
 			);
 
-			const includeUncommittedChanges = getConfigProperty(config, 'claudeLanes.includeUncommittedChanges');
+			const includeUncommittedChanges = getConfigProperty(config, 'lanes.includeUncommittedChanges');
 			assert.strictEqual(
 				includeUncommittedChanges.default,
 				true,
 				'includeUncommittedChanges should default to true'
 			);
 
-			const useGlobalStorage = getConfigProperty(config, 'claudeLanes.useGlobalStorage');
+			const useGlobalStorage = getConfigProperty(config, 'lanes.useGlobalStorage');
 			assert.strictEqual(
 				useGlobalStorage.default,
 				true,
 				'useGlobalStorage should default to true'
 			);
 
-			const claudeSessionPath = getConfigProperty(config, 'claudeLanes.claudeSessionPath');
+			const claudeSessionPath = getConfigProperty(config, 'lanes.claudeSessionPath');
 			assert.strictEqual(
 				claudeSessionPath.default,
 				'',
 				'claudeSessionPath should default to empty string'
 			);
 
-			const claudeStatusPath = getConfigProperty(config, 'claudeLanes.claudeStatusPath');
+			const claudeStatusPath = getConfigProperty(config, 'lanes.claudeStatusPath');
 			assert.strictEqual(
 				claudeStatusPath.default,
 				'',
 				'claudeStatusPath should default to empty string'
 			);
 
-			const featuresJsonPath = getConfigProperty(config, 'claudeLanes.featuresJsonPath');
+			const featuresJsonPath = getConfigProperty(config, 'lanes.featuresJsonPath');
 			assert.strictEqual(
 				featuresJsonPath.default,
 				'',
 				'featuresJsonPath should default to empty string'
 			);
 
-			const testsJsonPath = getConfigProperty(config, 'claudeLanes.testsJsonPath');
+			const testsJsonPath = getConfigProperty(config, 'lanes.testsJsonPath');
 			assert.strictEqual(
 				testsJsonPath.default,
 				'',
@@ -1301,15 +1301,15 @@ suite('Configuration Test Suite', () => {
 
 			// Expected descriptions for each setting
 			const expectedDescriptions: { [key: string]: string } = {
-				'claudeLanes.worktreesFolder': 'Folder name where session worktrees are created (relative to repository root). Default: .worktrees',
-				'claudeLanes.promptsFolder': "Folder where session starting prompts are stored. Leave empty (default) to use VS Code's global storage (keeps repo clean). Set a path like '.claude/lanes' for repo-relative storage.",
-				'claudeLanes.baseBranch': 'Branch to compare against when viewing changes. Leave empty for auto-detection (tries origin/main, origin/master, main, master)',
-				'claudeLanes.includeUncommittedChanges': 'Show uncommitted changes (staged and unstaged) when viewing session changes. Default: enabled',
-				'claudeLanes.useGlobalStorage': 'Store session tracking files in VS Code\'s storage instead of worktree folders. Keeps worktrees cleaner but files are hidden from version control. Default: enabled',
-				'claudeLanes.claudeSessionPath': 'Relative path for .claude-session file within each worktree. Only used when Use Global Storage is disabled. Leave empty for worktree root',
-				'claudeLanes.claudeStatusPath': 'Relative path for .claude-status file within each worktree. Only used when Use Global Storage is disabled. Leave empty for worktree root',
-				'claudeLanes.featuresJsonPath': 'Relative path for features.json within each worktree. Leave empty for worktree root',
-				'claudeLanes.testsJsonPath': 'Relative path for tests.json within each worktree. Leave empty for worktree root'
+				'lanes.worktreesFolder': 'Folder name where session worktrees are created (relative to repository root). Default: .worktrees',
+				'lanes.promptsFolder': "Folder where session starting prompts are stored. Leave empty (default) to use VS Code's global storage (keeps repo clean). Set a path like '.claude/lanes' for repo-relative storage.",
+				'lanes.baseBranch': 'Branch to compare against when viewing changes. Leave empty for auto-detection (tries origin/main, origin/master, main, master)',
+				'lanes.includeUncommittedChanges': 'Show uncommitted changes (staged and unstaged) when viewing session changes. Default: enabled',
+				'lanes.useGlobalStorage': 'Store session tracking files in VS Code\'s storage instead of worktree folders. Keeps worktrees cleaner but files are hidden from version control. Default: enabled',
+				'lanes.claudeSessionPath': 'Relative path for .claude-session file within each worktree. Only used when Use Global Storage is disabled. Leave empty for worktree root',
+				'lanes.claudeStatusPath': 'Relative path for .claude-status file within each worktree. Only used when Use Global Storage is disabled. Leave empty for worktree root',
+				'lanes.featuresJsonPath': 'Relative path for features.json within each worktree. Leave empty for worktree root',
+				'lanes.testsJsonPath': 'Relative path for tests.json within each worktree. Leave empty for worktree root'
 			};
 
 			for (const [key, expectedDescription] of Object.entries(expectedDescriptions)) {
@@ -1336,7 +1336,7 @@ suite('Configuration Test Suite', () => {
 
 		teardown(async () => {
 			// Reset promptsFolder configuration to default after each test
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('promptsFolder', undefined, vscode.ConfigurationTarget.Global);
 			fs.rmSync(tempDir, { recursive: true, force: true });
 			fs.rmSync(globalStorageDir, { recursive: true, force: true });
@@ -1346,7 +1346,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return global storage path when promptsFolder setting is empty (default)', async () => {
 				// Arrange: Ensure promptsFolder is empty (default)
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 				// Initialize global storage context
@@ -1384,7 +1384,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should use global storage structure: globalStorageUri/<repoIdentifier>/prompts/<sessionName>.txt', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1419,7 +1419,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return repo-relative path when promptsFolder is set to .claude/prompts', async () => {
 				// Arrange: Set custom promptsFolder
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '.claude/prompts', vscode.ConfigurationTarget.Global);
 
 				// Initialize global storage (should be ignored when promptsFolder is set)
@@ -1457,7 +1457,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return repo-relative path for custom promptsFolder like prompts/claude', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', 'prompts/claude', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1480,7 +1480,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should handle promptsFolder with leading/trailing slashes', async () => {
 				// Arrange: Set promptsFolder with slashes that should be trimmed
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '/custom-prompts/', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1509,7 +1509,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return null for sessionName containing path traversal (..)', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1524,7 +1524,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return null for sessionName containing forward slash', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1539,7 +1539,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return null for sessionName containing backslash', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1554,7 +1554,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should return null for empty sessionName', async () => {
 				// Arrange
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1569,7 +1569,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should fall back to global storage when promptsFolder contains path traversal (..)', async () => {
 				// Arrange: Set malicious path with parent directory traversal
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '../../../etc/passwd', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1598,7 +1598,7 @@ suite('Configuration Test Suite', () => {
 				// Arrange: Set path with leading slash (gets normalized)
 				// Note: The function strips leading/trailing slashes, so /etc/passwd becomes etc/passwd
 				// This is intentional - it makes the path repo-relative
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '/custom-folder', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1630,7 +1630,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should fall back to global storage for Windows absolute path on any platform', async () => {
 				// Arrange: Set Windows-style absolute path
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', 'C:\\Windows\\System32', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1650,7 +1650,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should reject path traversal attempts disguised in complex paths', async () => {
 				// Arrange: Set path with hidden traversal
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', 'prompts/../../../sensitive', vscode.ConfigurationTarget.Global);
 
 				const mockUri = vscode.Uri.file(globalStorageDir);
@@ -1674,7 +1674,7 @@ suite('Configuration Test Suite', () => {
 
 			test('should fall back to legacy .claude/lanes when global storage is not initialized', async () => {
 				// Arrange: Ensure promptsFolder is empty (would normally use global storage)
-				const config = vscode.workspace.getConfiguration('claudeLanes');
+				const config = vscode.workspace.getConfiguration('lanes');
 				await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 				// Simulate global storage not being initialized by using undefined
@@ -1744,11 +1744,11 @@ suite('Configuration Test Suite', () => {
 				const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
 				// Assert: promptsFolder configuration exists
-				const promptsFolderConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.promptsFolder');
+				const promptsFolderConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.promptsFolder');
 
 				assert.ok(
 					promptsFolderConfig,
-					'package.json should have claudeLanes.promptsFolder configuration'
+					'package.json should have lanes.promptsFolder configuration'
 				);
 				assert.strictEqual(
 					promptsFolderConfig.type,
@@ -1766,7 +1766,7 @@ suite('Configuration Test Suite', () => {
 				const packageJsonPath = path.join(__dirname, '..', '..', 'package.json');
 				const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
 
-				const promptsFolderConfig = getConfigProperty(packageJson.contributes.configuration, 'claudeLanes.promptsFolder');
+				const promptsFolderConfig = getConfigProperty(packageJson.contributes.configuration, 'lanes.promptsFolder');
 
 				assert.ok(promptsFolderConfig.description, 'promptsFolder should have a description');
 				assert.ok(

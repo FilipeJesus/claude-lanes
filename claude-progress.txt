@@ -3,7 +3,7 @@
 ### Completed
 - Implemented worktree detection with `getBaseRepoPath()` function to detect if running in a worktree and resolve base repository path
 - Added Project Manager integration with `addProjectToProjectManager()` and `removeProjectFromProjectManager()` functions
-- Projects are saved using `{repo_name}-{session_name}` format with `claude-lanes` tag
+- Projects are saved using `{repo_name}-{session_name}` format with `lanes` tag
 - Added "Open in New Window" button alongside git diff button using `$(multiple-windows)` icon
 - Updated `ClaudeSessionProvider` to accept `baseRepoPath` parameter for showing sessions from base repo when in worktree
 - Updated session creation to use base repo path when in a worktree window

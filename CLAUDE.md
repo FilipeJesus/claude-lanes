@@ -1,8 +1,8 @@
-# Claude Lanes - Development Guidelines
+# Lanes - Development Guidelines
 
 ## Project Overview
 
-Claude Lanes is a VS Code extension that manages isolated Claude Code sessions using Git worktrees. Each session gets its own worktree and dedicated terminal.
+Lanes is a VS Code extension that manages isolated Claude Code sessions using Git worktrees. Each session gets its own worktree and dedicated terminal.
 
 ## Key Files
 

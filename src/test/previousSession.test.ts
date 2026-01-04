@@ -130,7 +130,7 @@ suite('PreviousSessionProvider', () => {
 		promptsDir = path.join(tempDir, '.claude', 'lanes');
 
 		// Reset configuration to default
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', undefined, vscode.ConfigurationTarget.Global);
 		await config.update('worktreesFolder', undefined, vscode.ConfigurationTarget.Global);
 	});
@@ -139,7 +139,7 @@ suite('PreviousSessionProvider', () => {
 		fs.rmSync(tempDir, { recursive: true, force: true });
 
 		// Reset configuration
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', undefined, vscode.ConfigurationTarget.Global);
 		await config.update('worktreesFolder', undefined, vscode.ConfigurationTarget.Global);
 	});
@@ -352,14 +352,14 @@ suite('getPromptsDir', () => {
 
 	teardown(async () => {
 		// Reset configuration after each test
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', undefined, vscode.ConfigurationTarget.Global);
 	});
 
 	test('should return legacy path when not configured and global storage not initialized', async () => {
 		// Arrange: Ensure configuration is not set
 		// Note: In test environment, global storage is not initialized, so it falls back to legacy
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', undefined, vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -375,7 +375,7 @@ suite('getPromptsDir', () => {
 
 	test('should return legacy path when configuration is empty string', async () => {
 		// Arrange
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', '', vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -391,7 +391,7 @@ suite('getPromptsDir', () => {
 
 	test('should return legacy path when configuration is only whitespace', async () => {
 		// Arrange
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', '   ', vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -407,7 +407,7 @@ suite('getPromptsDir', () => {
 
 	test('should return configured path when valid path is set', async () => {
 		// Arrange
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', 'custom/prompts', vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -423,7 +423,7 @@ suite('getPromptsDir', () => {
 
 	test('should trim whitespace from configured path', async () => {
 		// Arrange
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', '  custom/prompts  ', vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -439,7 +439,7 @@ suite('getPromptsDir', () => {
 
 	test('should reject path with parent directory traversal (..) and use global storage fallback', async () => {
 		// Arrange
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', '../../../etc', vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -457,7 +457,7 @@ suite('getPromptsDir', () => {
 		// Arrange
 		// Note: The implementation strips leading/trailing slashes before checking isAbsolute,
 		// so '/etc/passwd' becomes 'etc/passwd' (a relative path) rather than being rejected.
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', '/custom/prompts', vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -473,7 +473,7 @@ suite('getPromptsDir', () => {
 
 	test('should normalize backslashes to forward slashes', async () => {
 		// Arrange
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', 'custom\\prompts\\folder', vscode.ConfigurationTarget.Global);
 
 		// Act
@@ -489,7 +489,7 @@ suite('getPromptsDir', () => {
 
 	test('should remove leading and trailing slashes', async () => {
 		// Arrange
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('promptsFolder', '/custom/prompts/', vscode.ConfigurationTarget.Global);
 
 		// Act

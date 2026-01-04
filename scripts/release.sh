@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# Claude Lanes Release Script
+# Lanes Release Script
 # Usage: ./scripts/release.sh [patch|minor|major]
 
 VERSION_TYPE=${1:-patch}
@@ -69,7 +69,7 @@ if [[ -f "README.github.md" ]]; then
 fi
 
 # Show what will be published
-VSIX_FILE="claude-lanes-${NEW_VERSION#v}.vsix"
+VSIX_FILE="lanes-${NEW_VERSION#v}.vsix"
 echo ""
 echo "📋 Package contents:"
 unzip -l "$VSIX_FILE" | head -20
@@ -103,4 +103,4 @@ fi
 
 echo ""
 echo "✅ Release $NEW_VERSION complete!"
-echo "   Marketplace: https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.claude-lanes"
+echo "   Marketplace: https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.lanes"

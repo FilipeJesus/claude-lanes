@@ -13,19 +13,19 @@ suite('Broken Worktree Detection', () => {
 
 	// Create a temp directory structure before tests
 	setup(async () => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-broken-worktree-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-broken-worktree-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 		fs.mkdirSync(worktreesDir, { recursive: true });
 
 		// Disable global storage for these tests since we're testing worktree-based file paths
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 	});
 
 	// Clean up after each test
 	teardown(async () => {
 		// Reset useGlobalStorage to default
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', undefined, vscode.ConfigurationTarget.Global);
 		fs.rmSync(tempDir, { recursive: true, force: true });
 	});
@@ -189,11 +189,11 @@ suite('Broken Worktree Repair', () => {
 
 	// Create a real git repository for integration tests
 	setup(async () => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-repair-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-repair-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 
 		// Disable global storage for these tests
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 
 		// Try to initialize a real git repository for integration tests
@@ -216,7 +216,7 @@ suite('Broken Worktree Repair', () => {
 	// Clean up after each test
 	teardown(async () => {
 		// Reset useGlobalStorage to default
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', undefined, vscode.ConfigurationTarget.Global);
 		fs.rmSync(tempDir, { recursive: true, force: true });
 	});

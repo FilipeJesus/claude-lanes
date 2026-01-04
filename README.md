@@ -1,16 +1,16 @@
 <p align="center">
   <a href="https://claudelanes.com">
-    <img src="media/claude-lanes-default-256px.png" alt="Claude Lanes Logo" width="128" />
+    <img src="media/lanes-default-256px.png" alt="Lanes Logo" width="128" />
   </a>
 </p>
 
-# Claude Lanes
+# Lanes: AI Project Management
 
 **Manage multiple, isolated Claude Code sessions directly inside VS Code.**
 
-Claude Lanes uses Git Worktrees to give every agent session its own isolated file system and dedicated terminal. No more context contamination. No more half-finished files clashing with each other.
+Lanes uses Git Worktrees to give every agent session its own isolated file system and dedicated terminal. No more context contamination. No more half-finished files clashing with each other.
 
-![Claude Lanes in action](media/screenshot.png)
+![Lanes in action](media/screenshot.png)
 
 ---
 
@@ -48,13 +48,13 @@ sudo apt-get install jq  # Ubuntu/Debian
 
 ### Install
 
-Search for **"Claude Lanes"** in the VS Code Extensions marketplace, or visit the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.claude-lanes).
+Search for **"Lanes"** in the VS Code Extensions marketplace, or visit the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.lanes).
 
 **From Source:**
 
 ```bash
-git clone https://github.com/FilipeJesus/claude-lanes.git
-cd claude-lanes && npm install
+git clone https://github.com/FilipeJesus/lanes.git
+cd lanes && npm install
 npm run compile && npx vsce package
 # Then install the .vsix via "Extensions: Install from VSIX..."
 ```
@@ -63,7 +63,7 @@ npm run compile && npx vsce package
 
 ## Usage
 
-1. Open the **Claude Lanes** sidebar
+1. Open the **Lanes** sidebar
 2. Fill in **Session Name** and optionally a **Starting Prompt**
 3. Click **Create Session**
 4. A terminal opens with Claude running in an isolated worktree
@@ -76,10 +76,10 @@ Click any session to resume it. Click the trash icon to delete (branch is preser
 
 | Command | Description |
 |---------|-------------|
-| `Claude Lanes: Create Session` | Create a new isolated session |
-| `Claude Lanes: Open Session` | Open/focus an existing session's terminal |
-| `Claude Lanes: Delete Session` | Remove a session's worktree and terminal |
-| `Claude Lanes: Setup Status Hooks` | Configure Claude hooks for status indicators |
+| `Lanes: Create Session` | Create a new isolated session |
+| `Lanes: Open Session` | Open/focus an existing session's terminal |
+| `Lanes: Delete Session` | Remove a session's worktree and terminal |
+| `Lanes: Setup Status Hooks` | Configure Claude hooks for status indicators |
 
 ---
 
@@ -108,8 +108,8 @@ Contributions are welcome!
 ### Development Setup
 
 ```bash
-git clone https://github.com/FilipeJesus/claude-lanes.git
-cd claude-lanes
+git clone https://github.com/FilipeJesus/lanes.git
+cd lanes
 npm install
 ```
 
@@ -161,6 +161,6 @@ MIT - see [LICENSE](LICENSE) for details.
 ## Links
 
 - [Website](https://claudelanes.com)
-- [GitHub Repository](https://github.com/FilipeJesus/claude-lanes)
-- [Report Issues](https://github.com/FilipeJesus/claude-lanes/issues)
+- [GitHub Repository](https://github.com/FilipeJesus/lanes)
+- [Report Issues](https://github.com/FilipeJesus/lanes/issues)
 - [Claude Code Documentation](https://claude.com/claude-code)

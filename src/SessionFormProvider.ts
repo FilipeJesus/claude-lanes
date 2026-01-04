@@ -82,7 +82,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                             await this._onSubmit(message.name, message.prompt, message.acceptanceCriteria || '', message.sourceBranch || '', message.permissionMode || 'default');
                         } catch (err) {
                             // Error is already shown by createSession, but log for debugging
-                            console.error('Claude Lanes: Session creation failed:', err);
+                            console.error('Lanes: Session creation failed:', err);
                             // Don't clear form on error so user can retry
                             return;
                         }

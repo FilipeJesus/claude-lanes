@@ -114,11 +114,11 @@ export function getSessionNameFromWorktree(worktreePath: string): string {
 export function getPromptsPath(sessionName: string, repoRoot: string): { path: string; needsDir: string } | null {
     // Security: Validate sessionName to prevent path traversal
     if (!sessionName || sessionName.includes('..') || sessionName.includes('/') || sessionName.includes('\\')) {
-        console.warn('Claude Lanes: Invalid session name for prompts path');
+        console.warn('Lanes: Invalid session name for prompts path');
         return null;
     }
 
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const promptsFolder = config.get<string>('promptsFolder', '');
 
     // If user has specified a promptsFolder, use repo-relative storage
@@ -133,12 +133,12 @@ export function getPromptsPath(sessionName: string, repoRoot: string): { path: s
         }
         // Security: Reject absolute paths
         else if (path.isAbsolute(trimmedFolder)) {
-            console.warn('Claude Lanes: Absolute paths not allowed in promptsFolder. Using global storage.');
+            console.warn('Lanes: Absolute paths not allowed in promptsFolder. Using global storage.');
             // Fall through to global storage
         }
         // Security: Reject parent directory traversal
         else if (trimmedFolder.includes('..')) {
-            console.warn('Claude Lanes: Invalid promptsFolder path (contains ..). Using global storage.');
+            console.warn('Lanes: Invalid promptsFolder path (contains ..). Using global storage.');
             // Fall through to global storage
         }
         else {
@@ -152,7 +152,7 @@ export function getPromptsPath(sessionName: string, repoRoot: string): { path: s
     // Default: Use global storage
     if (!globalStorageUri || !baseRepoPathForStorage) {
         // Global storage not initialized - fall back to legacy default
-        console.warn('Claude Lanes: Global storage not initialized. Using legacy prompts location (.claude/lanes).');
+        console.warn('Lanes: Global storage not initialized. Using legacy prompts location (.claude/lanes).');
         const legacyDir = path.join(repoRoot, '.claude', 'lanes');
         const legacyPath = path.join(legacyDir, `${sessionName}.txt`);
         return { path: legacyPath, needsDir: legacyDir };
@@ -188,7 +188,7 @@ export function getGlobalStoragePath(worktreePath: string, filename: string): st
  * @returns true if useGlobalStorage is enabled, false otherwise
  */
 export function isGlobalStorageEnabled(): boolean {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     return config.get<boolean>('useGlobalStorage', true);
 }
 
@@ -198,7 +198,7 @@ export function isGlobalStorageEnabled(): boolean {
  * @returns The worktrees folder name (default: '.worktrees')
  */
 export function getWorktreesFolder(): string {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const folder = config.get<string>('worktreesFolder', '.worktrees');
 
     if (!folder || !folder.trim()) {
@@ -216,13 +216,13 @@ export function getWorktreesFolder(): string {
 
     // Security: Reject absolute paths
     if (path.isAbsolute(trimmedFolder)) {
-        console.warn('Claude Lanes: Absolute paths not allowed in worktreesFolder. Using default.');
+        console.warn('Lanes: Absolute paths not allowed in worktreesFolder. Using default.');
         return '.worktrees';
     }
 
     // Security: Reject parent directory traversal
     if (trimmedFolder.includes('..')) {
-        console.warn('Claude Lanes: Invalid worktreesFolder path. Using default.');
+        console.warn('Lanes: Invalid worktreesFolder path. Using default.');
         return '.worktrees';
     }
 
@@ -249,13 +249,13 @@ function validateAndBuildPath(relativePath: string, worktreePath: string, filena
 
     // Security: Reject absolute paths
     if (path.isAbsolute(trimmedPath)) {
-        console.warn(`Claude Lanes: Absolute paths not allowed in configuration: ${trimmedPath}. Using default.`);
+        console.warn(`Lanes: Absolute paths not allowed in configuration: ${trimmedPath}. Using default.`);
         return defaultPath;
     }
 
     // Security: Reject parent directory traversal
     if (trimmedPath.includes('..')) {
-        console.warn(`Claude Lanes: Parent directory traversal not allowed: ${trimmedPath}. Using default.`);
+        console.warn(`Lanes: Parent directory traversal not allowed: ${trimmedPath}. Using default.`);
         return defaultPath;
     }
 
@@ -265,7 +265,7 @@ function validateAndBuildPath(relativePath: string, worktreePath: string, filena
     const normalizedWorktree = path.normalize(worktreePath + path.sep);
     const normalizedResolved = path.normalize(resolvedPath);
     if (!normalizedResolved.startsWith(normalizedWorktree)) {
-        console.warn(`Claude Lanes: Path traversal detected. Using default.`);
+        console.warn(`Lanes: Path traversal detected. Using default.`);
         return defaultPath;
     }
 
@@ -281,7 +281,7 @@ function validateAndBuildPath(relativePath: string, worktreePath: string, filena
  * @returns Full path to features.json based on configuration
  */
 export function getFeaturesJsonPath(worktreePath: string): string {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const relativePath = config.get<string>('featuresJsonPath', '');
     return validateAndBuildPath(relativePath, worktreePath, 'features.json');
 }
@@ -295,7 +295,7 @@ export function getFeaturesJsonPath(worktreePath: string): string {
  * @returns Full path to tests.json based on configuration
  */
 export function getTestsJsonPath(worktreePath: string): string {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const relativePath = config.get<string>('testsJsonPath', '');
     return validateAndBuildPath(relativePath, worktreePath, 'tests.json');
 }
@@ -318,7 +318,7 @@ export function getClaudeSessionPath(worktreePath: string): string {
         // Fall back to worktree path if global storage not initialized
     }
 
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const relativePath = config.get<string>('claudeSessionPath', '');
     return validateAndBuildPath(relativePath, worktreePath, '.claude-session');
 }
@@ -341,7 +341,7 @@ export function getClaudeStatusPath(worktreePath: string): string {
         // Fall back to worktree path if global storage not initialized
     }
 
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const relativePath = config.get<string>('claudeStatusPath', '');
     return validateAndBuildPath(relativePath, worktreePath, '.claude-status');
 }

@@ -14,7 +14,7 @@ suite('Git Changes Test Suite', () => {
 
 	// Create a temp directory structure before tests
 	setup(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-git-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-git-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 	});
 
@@ -1029,7 +1029,7 @@ index 7654321..gfedcba 100644
 	});
 
 	suite('Base Branch Configuration', () => {
-		// These tests verify that getBaseBranch correctly uses the claudeLanes.baseBranch
+		// These tests verify that getBaseBranch correctly uses the lanes.baseBranch
 		// configuration setting, and falls back to auto-detection when not set.
 
 		// Get the path to the git repository root for fallback tests
@@ -1037,13 +1037,13 @@ index 7654321..gfedcba 100644
 
 		teardown(async () => {
 			// Reset the baseBranch configuration to default after each test
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('baseBranch', undefined, vscode.ConfigurationTarget.Global);
 		});
 
-		test('should return configured value when claudeLanes.baseBranch setting is set', async () => {
+		test('should return configured value when lanes.baseBranch setting is set', async () => {
 			// Arrange: Set the baseBranch configuration to 'develop'
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('baseBranch', 'develop', vscode.ConfigurationTarget.Global);
 
 			// Act: Call getBaseBranch - the cwd doesn't matter when config is set
@@ -1060,7 +1060,7 @@ index 7654321..gfedcba 100644
 
 		test('should use fallback detection when baseBranch setting is empty', async () => {
 			// Arrange: Ensure the baseBranch configuration is empty
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('baseBranch', '', vscode.ConfigurationTarget.Global);
 
 			// Act: Call getBaseBranch with the actual repo path
@@ -1077,7 +1077,7 @@ index 7654321..gfedcba 100644
 
 		test('should treat whitespace-only setting as empty and use fallback', async () => {
 			// Arrange: Set the baseBranch configuration to whitespace only
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('baseBranch', '   ', vscode.ConfigurationTarget.Global);
 
 			// Act: Call getBaseBranch with the actual repo path

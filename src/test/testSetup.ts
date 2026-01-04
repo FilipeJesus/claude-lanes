@@ -1,5 +1,5 @@
 /**
- * Shared test utilities for Claude Lanes extension tests.
+ * Shared test utilities for Lanes extension tests.
  *
  * This module provides common setup and teardown utilities that can be
  * reused across different test suites.
@@ -26,7 +26,7 @@ export interface TempDirResult {
  * Creates a temporary directory structure for testing.
  *
  * Creates a unique temp directory with a `.worktrees` subdirectory,
- * which mimics the Claude Lanes extension's directory structure.
+ * which mimics the Lanes extension's directory structure.
  *
  * @returns Object containing paths to tempDir and worktreesDir
  *
@@ -44,7 +44,7 @@ export interface TempDirResult {
  * ```
  */
 export function createTempDir(): TempDirResult {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-test-'));
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-test-'));
     const worktreesDir = path.join(tempDir, '.worktrees');
     return { tempDir, worktreesDir };
 }

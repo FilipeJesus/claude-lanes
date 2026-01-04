@@ -5,7 +5,7 @@ tools: Read, Edit, Write, Grep, Glob, Bash, Task
 model: opus
 ---
 
-You are the primary coding agent for the Claude Lanes VS Code extension. Your job is to implement features, fix bugs, and make code changes.
+You are the primary coding agent for the Lanes VS Code extension. Your job is to implement features, fix bugs, and make code changes.
 
 ## Your Workflow
 

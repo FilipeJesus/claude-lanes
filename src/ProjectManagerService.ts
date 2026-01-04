@@ -9,7 +9,7 @@
  *
  * LIMITATION: This integration is disabled in remote development contexts (Remote-SSH,
  * Remote-WSL, Dev Containers) because Project Manager is a UI extension that runs
- * locally while Claude Lanes runs on the remote machine. The worktree paths created
+ * locally while Lanes runs on the remote machine. The worktree paths created
  * on the remote wouldn't be accessible from Project Manager anyway.
  *
  * @see https://marketplace.visualstudio.com/items?itemName=alefragnani.project-manager
@@ -36,7 +36,7 @@ let globalStoragePath: string | undefined;
  *
  * Note: Project Manager integration is disabled in remote contexts (Remote-SSH,
  * Remote-WSL, Dev Containers) because Project Manager is a UI extension that
- * stores its data locally, while Claude Lanes runs on the remote machine.
+ * stores its data locally, while Lanes runs on the remote machine.
  * The paths would not be accessible from Project Manager anyway.
  *
  * @param context The VS Code extension context
@@ -45,12 +45,12 @@ export function initialize(context: vscode.ExtensionContext): void {
     // Skip initialization in remote contexts
     // Project Manager runs locally while we run on the remote - paths wouldn't match
     if (vscode.env.remoteName) {
-        console.log(`Claude Lanes: Skipping Project Manager integration in remote context (${vscode.env.remoteName})`);
+        console.log(`Lanes: Skipping Project Manager integration in remote context (${vscode.env.remoteName})`);
         return;
     }
 
     // Get our extension's global storage path and derive Project Manager's path from it
-    // Our path: .../globalStorage/filipeMarquesJesus.claude-lanes
+    // Our path: .../globalStorage/FilipeMarquesJesus.lanes
     // PM path:  .../globalStorage/alefragnani.project-manager
     const ourStoragePath = context.globalStorageUri.fsPath;
     const globalStorageDir = path.dirname(ourStoragePath);
@@ -65,7 +65,7 @@ export function initialize(context: vscode.ExtensionContext): void {
  */
 function getProjectsFilePath(): string | undefined {
     if (!globalStoragePath) {
-        console.warn('Claude Lanes: ProjectManagerService not initialized. Call initialize() first.');
+        console.warn('Lanes: ProjectManagerService not initialized. Call initialize() first.');
         return undefined;
     }
     return path.join(globalStoragePath, 'projects.json');
@@ -139,12 +139,12 @@ export async function addProject(
 ): Promise<boolean> {
     // Validate inputs
     if (!name || !name.trim()) {
-        console.warn('Claude Lanes: addProject called with empty name');
+        console.warn('Lanes: addProject called with empty name');
         return false;
     }
 
     if (!rootPath || !rootPath.trim()) {
-        console.warn('Claude Lanes: addProject called with empty rootPath');
+        console.warn('Lanes: addProject called with empty rootPath');
         return false;
     }
 
@@ -178,7 +178,7 @@ export async function addProject(
                 name,
                 rootPath,
                 enabled: true,
-                tags: tags || ['claude-lanes']
+                tags: tags || ['lanes']
             });
         }
 
@@ -193,7 +193,7 @@ export async function addProject(
         return true;
 
     } catch (err) {
-        console.error('Claude Lanes: Failed to add project to Project Manager:', err);
+        console.error('Lanes: Failed to add project to Project Manager:', err);
         return false;
     }
 }
@@ -208,7 +208,7 @@ export async function addProject(
 export async function removeProject(rootPath: string): Promise<boolean> {
     // Validate input
     if (!rootPath || !rootPath.trim()) {
-        console.warn('Claude Lanes: removeProject called with empty rootPath');
+        console.warn('Lanes: removeProject called with empty rootPath');
         return false;
     }
 

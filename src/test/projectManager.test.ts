@@ -13,7 +13,7 @@ suite('Project Manager Test Suite', () => {
 
 	// Create a temp directory structure before tests
 	setup(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 	});
 

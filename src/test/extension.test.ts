@@ -22,7 +22,7 @@ suite('Extension Settings File', () => {
 
 	// Create a temp directory structure before tests
 	setup(async () => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-ext-settings-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-ext-settings-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 		fs.mkdirSync(worktreesDir, { recursive: true });
 		globalStorageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-global-storage-'));
@@ -32,14 +32,14 @@ suite('Extension Settings File', () => {
 		initializeGlobalStorageContext(mockUri, tempDir);
 
 		// Enable global storage for these tests
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', true, vscode.ConfigurationTarget.Global);
 	});
 
 	// Clean up after each test
 	teardown(async () => {
 		// Reset configuration
-		const config = vscode.workspace.getConfiguration('claudeLanes');
+		const config = vscode.workspace.getConfiguration('lanes');
 		await config.update('useGlobalStorage', undefined, vscode.ConfigurationTarget.Global);
 		await config.update('claudeStatusPath', undefined, vscode.ConfigurationTarget.Global);
 		await config.update('claudeSessionPath', undefined, vscode.ConfigurationTarget.Global);
@@ -283,7 +283,7 @@ suite('Extension Settings File', () => {
 
 		test('should use relative paths when useGlobalStorage is disabled', async () => {
 			// Arrange
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 
 			const sessionName = 'relative-paths-test';
@@ -425,7 +425,7 @@ suite('Extension Settings File', () => {
 
 		test('should respect claudeStatusPath configuration for relative paths', async () => {
 			// Arrange
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 			await config.update('claudeStatusPath', '.claude', vscode.ConfigurationTarget.Global);
 
@@ -447,7 +447,7 @@ suite('Extension Settings File', () => {
 
 		test('should respect claudeSessionPath configuration for relative paths', async () => {
 			// Arrange
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 			await config.update('claudeSessionPath', '.claude', vscode.ConfigurationTarget.Global);
 
@@ -469,7 +469,7 @@ suite('Extension Settings File', () => {
 
 		test('should work with global storage enabled (paths should be absolute)', async () => {
 			// Arrange: Enable global storage (should be default)
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('useGlobalStorage', true, vscode.ConfigurationTarget.Global);
 
 			const sessionName = 'global-storage-enabled';
@@ -492,7 +492,7 @@ suite('Extension Settings File', () => {
 
 		test('should work with global storage disabled (paths should be relative)', async () => {
 			// Arrange: Disable global storage
-			const config = vscode.workspace.getConfiguration('claudeLanes');
+			const config = vscode.workspace.getConfiguration('lanes');
 			await config.update('useGlobalStorage', false, vscode.ConfigurationTarget.Global);
 
 			const sessionName = 'global-storage-disabled';

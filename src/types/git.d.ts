@@ -1,6 +1,6 @@
 /**
  * Minimal type definitions for the VS Code Git Extension API.
- * Only includes what Claude Lanes needs to get the git executable path.
+ * Only includes what Lanes needs to get the git executable path.
  */
 
 import { Event } from 'vscode';

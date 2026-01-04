@@ -1,4 +1,4 @@
-# Claude Lanes
+# Lanes: AI Project Management
 
 Run multiple Claude Code sessions in parallel, each in its own isolated Git worktree. No more context contamination. No more conflicting file changes.
 
@@ -8,11 +8,11 @@ Run multiple Claude Code sessions in parallel, each in its own isolated Git work
 - **Built-in diff viewer**: Review all changes before merging back to your main branch
 - **One-click cleanup**: Delete the worktree when done, keep the branch for merging
 
-Visit [www.claudelanes.com](https://claudelanes.com) to learn more about Claude Lanes.
+Visit [www.claudelanes.com](https://claudelanes.com) to learn more about Lanes.
 
 ## Example View
 
-![Claude Lanes in action](media/screenshot.png)
+![Lanes in action](media/screenshot.png)
 
 ## Requirements
 
@@ -23,7 +23,7 @@ Visit [www.claudelanes.com](https://claudelanes.com) to learn more about Claude 
 
 ## Docs
 
-See our [documentation](https://github.com/FilipeJesus/claude-lanes/blob/main/README.md) for more information on using Claude Lanes.
+See our [documentation](https://github.com/FilipeJesus/lanes/blob/main/README.md) for more information on using Lanes.
 
 ## Using with Dev Containers
 
@@ -32,7 +32,7 @@ Session tracking files are stored in VS Code's global storage, which is destroye
 ```json
 {
   "mounts": [
-    "source=claude-lanes-storage,target=/root/.vscode-server/data/User/globalStorage/filipeMarquesJesus.claude-lanes,type=volume"
+    "source=lanes-storage,target=/root/.vscode-server/data/User/globalStorage/FilipeMarquesJesus.lanes,type=volume"
   ]
 }
 ```
@@ -41,4 +41,4 @@ Session tracking files are stored in VS Code's global storage, which is destroye
 
 ## Known Issues
 
-This is an early release and may contain bugs or incomplete features. Please [report issues](https://github.com/FilipeJesus/claude-lanes/issues) on GitHub.
+This is an early release and may contain bugs or incomplete features. Please [report issues](https://github.com/FilipeJesus/lanes/issues) on GitHub.

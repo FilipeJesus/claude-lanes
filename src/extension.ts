@@ -38,7 +38,7 @@ export interface BrokenWorktree {
     path: string;
     /** Session name (folder name, which equals the branch name) */
     sessionName: string;
-    /** Expected branch name (same as session name in Claude Lanes) */
+    /** Expected branch name (same as session name in Lanes) */
     expectedBranch: string;
 }
 
@@ -69,7 +69,7 @@ export async function detectBrokenWorktrees(baseRepoPath: string): Promise<Broke
     try {
         entries = await fsPromises.readdir(worktreesDir);
     } catch (err) {
-        console.warn('Claude Lanes: Failed to read worktrees directory:', getErrorMessage(err));
+        console.warn('Lanes: Failed to read worktrees directory:', getErrorMessage(err));
         return brokenWorktrees;
     }
 
@@ -123,7 +123,7 @@ export async function detectBrokenWorktrees(baseRepoPath: string): Promise<Broke
                 brokenWorktrees.push({
                     path: worktreePath,
                     sessionName: entry,
-                    expectedBranch: entry // In Claude Lanes, folder name = branch name
+                    expectedBranch: entry // In Lanes, folder name = branch name
                 });
             }
         } catch {
@@ -207,7 +207,7 @@ export async function repairWorktree(
         await copyDirectoryContents(tempPath, worktreePath);
     } catch (err) {
         // Log but don't fail - the worktree is fixed, just some files might not be copied
-        console.warn(`Claude Lanes: Failed to copy some files during repair: ${getErrorMessage(err)}`);
+        console.warn(`Lanes: Failed to copy some files during repair: ${getErrorMessage(err)}`);
     }
 
     // Step 6: Remove the temp directory
@@ -215,7 +215,7 @@ export async function repairWorktree(
         await fsPromises.rm(tempPath, { recursive: true, force: true });
     } catch (err) {
         // Log but don't fail - the repair was successful
-        console.warn(`Claude Lanes: Failed to clean up temp directory: ${getErrorMessage(err)}`);
+        console.warn(`Lanes: Failed to clean up temp directory: ${getErrorMessage(err)}`);
     }
 
     return { success: true };
@@ -339,12 +339,12 @@ export async function checkAndRepairBrokenWorktrees(baseRepoPath: string): Promi
         vscode.window.showWarningMessage(
             `Repaired ${successCount} worktree${successCount > 1 ? 's' : ''}, but ${failures.length} failed. Check the console for details.`
         );
-        console.error('Claude Lanes: Failed to repair some worktrees:', failures);
+        console.error('Lanes: Failed to repair some worktrees:', failures);
     } else {
         vscode.window.showErrorMessage(
             `Failed to repair worktrees. Check the console for details.`
         );
-        console.error('Claude Lanes: Failed to repair worktrees:', failures);
+        console.error('Lanes: Failed to repair worktrees:', failures);
     }
 }
 
@@ -465,7 +465,7 @@ export async function getBaseRepoPath(workspacePath: string): Promise<string> {
 
     } catch (err) {
         // Not a git repository or git command failed - return original path
-        console.warn('Claude Lanes: getBaseRepoPath failed:', getErrorMessage(err));
+        console.warn('Lanes: getBaseRepoPath failed:', getErrorMessage(err));
         return workspacePath;
     }
 }
@@ -478,7 +478,7 @@ export async function getBaseRepoPath(workspacePath: string): Promise<string> {
  * @returns Glob pattern for watching the file in worktrees
  */
 function getWatchPattern(configKey: string, filename: string): string {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const relativePath = config.get<string>(configKey, '');
     const worktreesFolder = getWorktreesFolder();
 
@@ -490,13 +490,13 @@ function getWatchPattern(configKey: string, filename: string): string {
 
         // Security: Reject absolute paths
         if (path.isAbsolute(normalizedPath)) {
-            console.warn(`Claude Lanes: Absolute paths not allowed in ${configKey}. Using default.`);
+            console.warn(`Lanes: Absolute paths not allowed in ${configKey}. Using default.`);
             return `${worktreesFolder}/**/${filename}`;
         }
 
         // Security: Reject paths with parent directory traversal
         if (normalizedPath.includes('..')) {
-            console.warn(`Claude Lanes: Invalid path in ${configKey}: ${normalizedPath}. Using default.`);
+            console.warn(`Lanes: Invalid path in ${configKey}: ${normalizedPath}. Using default.`);
             return `${worktreesFolder}/**/${filename}`;
         }
 
@@ -543,7 +543,7 @@ export function getRepoName(repoPath: string): string {
 
 
 export async function activate(context: vscode.ExtensionContext) {
-    console.log('Congratulations, "Claude Lanes" is now active!'); // Check Debug Console for this
+    console.log('Congratulations, "Lanes" is now active!'); // Check Debug Console for this
 
     // Initialize git path from VS Code Git Extension (with fallback to 'git')
     await initializeGitPath();
@@ -575,7 +575,7 @@ export async function activate(context: vscode.ExtensionContext) {
     if (baseRepoPath) {
         // Run asynchronously to not block extension activation
         checkAndRepairBrokenWorktrees(baseRepoPath).catch(err => {
-            console.error('Claude Lanes: Error checking for broken worktrees:', getErrorMessage(err));
+            console.error('Lanes: Error checking for broken worktrees:', getErrorMessage(err));
         });
     }
 
@@ -655,7 +655,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
         // Ensure the global storage directory exists
         fsPromises.mkdir(globalStoragePath, { recursive: true }).catch(err => {
-            console.warn('Claude Lanes: Failed to create global storage directory:', err);
+            console.warn('Lanes: Failed to create global storage directory:', err);
         });
 
         const globalStorageWatcher = vscode.workspace.createFileSystemWatcher(
@@ -723,7 +723,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Use a flag to prevent concurrent execution during async operations
     let isUpdatingStorageConfig = false;
     const configChangeDisposable = vscode.workspace.onDidChangeConfiguration(async (event) => {
-        if (event.affectsConfiguration('claudeLanes.useGlobalStorage')) {
+        if (event.affectsConfiguration('lanes.useGlobalStorage')) {
             // Prevent concurrent execution
             if (isUpdatingStorageConfig) {
                 return;
@@ -734,8 +734,8 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Notify user about the change
                 const useGlobal = isGlobalStorageEnabled();
                 const message = useGlobal
-                    ? 'Claude Lanes: Global storage enabled. New sessions will use global storage for tracking files.'
-                    : 'Claude Lanes: Global storage disabled. New sessions will use worktree directories for tracking files.';
+                    ? 'Lanes: Global storage enabled. New sessions will use global storage for tracking files.'
+                    : 'Lanes: Global storage disabled. New sessions will use worktree directories for tracking files.';
                 vscode.window.showInformationMessage(message);
 
                 // Offer to update existing worktrees
@@ -879,7 +879,7 @@ export async function activate(context: vscode.ExtensionContext) {
     // Helper function to generate diff content for a worktree
     async function generateDiffContent(worktreePath: string, baseBranch: string): Promise<string> {
         // Check if we should include uncommitted changes
-        const config = vscode.workspace.getConfiguration('claudeLanes');
+        const config = vscode.workspace.getConfiguration('lanes');
         const includeUncommitted = config.get<boolean>('includeUncommittedChanges', true);
 
         // Get the diff - either including working directory changes or only committed changes
@@ -942,7 +942,7 @@ export async function activate(context: vscode.ExtensionContext) {
                         untrackedDiffs.push(synthesizedDiff);
                     } catch (fileErr) {
                         // Skip files that can't be read (permissions, etc.)
-                        console.warn(`Claude Lanes: Could not read untracked file ${filePath}:`, getErrorMessage(fileErr));
+                        console.warn(`Lanes: Could not read untracked file ${filePath}:`, getErrorMessage(fileErr));
                     }
                 }
 
@@ -956,7 +956,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 }
             } catch (statusErr) {
                 // If git status fails, continue with just the diff
-                console.warn('Claude Lanes: Could not get untracked files:', getErrorMessage(statusErr));
+                console.warn('Lanes: Could not get untracked files:', getErrorMessage(statusErr));
             }
         }
 
@@ -1375,7 +1375,7 @@ async function createSession(
             // Get sanitized repo name for project naming
             const repoName = getRepoName(workspaceRoot).replace(/[<>:"/\\|?*]/g, '_');
             const projectName = `${repoName}-${trimmedName}`;
-            await addProject(projectName, worktreePath, ['claude-lanes']);
+            await addProject(projectName, worktreePath, ['lanes']);
 
             // 6. Success
             sessionProvider.refresh();
@@ -1445,7 +1445,7 @@ async function openClaudeTerminal(taskName: string, worktreePath: string, prompt
         const settingsPath = await getOrCreateExtensionSettingsFile(worktreePath);
         settingsFlag = `--settings "${settingsPath}" `;
     } catch (err) {
-        console.warn('Claude Lanes: Failed to create extension settings file:', getErrorMessage(err));
+        console.warn('Lanes: Failed to create extension settings file:', getErrorMessage(err));
         // Continue without the settings flag - hooks won't work but Claude will still run
     }
 
@@ -1575,7 +1575,7 @@ interface HookEntry {
  * @returns The relative path prefix for the file (empty string or 'path/')
  */
 function getRelativeFilePath(configKey: string): string {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const relativePath = config.get<string>(configKey, '');
 
     if (!relativePath || !relativePath.trim()) {
@@ -1588,7 +1588,7 @@ function getRelativeFilePath(configKey: string): string {
 
     // Security: Reject paths with parent directory traversal
     if (trimmedPath.includes('..')) {
-        console.warn(`Claude Lanes: Invalid path in ${configKey}: ${trimmedPath}. Using default.`);
+        console.warn(`Lanes: Invalid path in ${configKey}: ${trimmedPath}. Using default.`);
         return '';
     }
 
@@ -1802,14 +1802,14 @@ export function synthesizeUntrackedFileDiff(filePath: string, content: string): 
 
 /**
  * Determines the base branch for comparing changes.
- * First checks the claudeLanes.baseBranch setting.
+ * First checks the lanes.baseBranch setting.
  * If not set, checks in order: origin/main, origin/master, main, master.
  * @param cwd The working directory (git repo or worktree)
  * @returns The name of the base branch to use for comparisons
  */
 export async function getBaseBranch(cwd: string): Promise<string> {
     // First check if user has configured a base branch
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const configuredBranch = config.get<string>('baseBranch', '');
 
     if (configuredBranch && configuredBranch.trim()) {

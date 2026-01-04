@@ -1,5 +1,5 @@
 /**
- * Git Service for Claude Lanes
+ * Git Service for Lanes
  *
  * Provides the git executable path from VS Code's Git Extension when available,
  * with fallback to using 'git' directly from PATH.
@@ -22,7 +22,7 @@ export async function initializeGitPath(): Promise<void> {
         const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git');
 
         if (!gitExtension) {
-            console.log('Claude Lanes: VS Code Git extension not found, using default git path');
+            console.log('Lanes: VS Code Git extension not found, using default git path');
             return;
         }
 
@@ -34,12 +34,12 @@ export async function initializeGitPath(): Promise<void> {
         const api = gitExtension.exports.getAPI(1);
         if (api?.git?.path) {
             gitPath = api.git.path;
-            console.log(`Claude Lanes: Using git from VS Code: ${gitPath}`);
+            console.log(`Lanes: Using git from VS Code: ${gitPath}`);
         } else {
-            console.log('Claude Lanes: Could not get git path from VS Code, using default');
+            console.log('Lanes: Could not get git path from VS Code, using default');
         }
     } catch (err) {
-        console.warn('Claude Lanes: Failed to get git path from VS Code, using default:', err);
+        console.warn('Lanes: Failed to get git path from VS Code, using default:', err);
     }
 }
 

@@ -14,7 +14,7 @@ suite('Session Tests', () => {
 
 	// Create a temp directory structure before tests
 	setup(() => {
-		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'claude-lanes-session-test-'));
+		tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lanes-session-test-'));
 		worktreesDir = path.join(tempDir, '.worktrees');
 	});
 

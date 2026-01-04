@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Claude Lanes extension will be documented in this file.
+All notable changes to the Lanes extension will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -63,8 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Global storage option for session tracking files - keeps `.claude-status` and `.claude-session` files outside worktrees
-- Configurable worktrees folder location (`claudeLanes.worktreesFolder`)
-- Configurable prompts folder location (`claudeLanes.promptsFolder`)
+- Configurable worktrees folder location (`lanes.worktreesFolder`)
+- Configurable prompts folder location (`lanes.promptsFolder`)
 - Local settings file (`settings.local.json`) for hooks configuration with migration prompt from legacy format
 - Session name sanitization for valid git branch names
 
@@ -97,7 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Git Changes viewer for sessions - view diff against base branch directly from sidebar
 - Code review comments feature in Git Changes viewer with clipboard export
-- Configurable base branch setting (`claudeLanes.baseBranch`) for Git diff comparison
+- Configurable base branch setting (`lanes.baseBranch`) for Git diff comparison
 - Option to include uncommitted changes in Git diff view
 
 ### Fixed

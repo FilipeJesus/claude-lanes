@@ -11,7 +11,7 @@ import { getWorktreesFolder, getGlobalStorageUri, getRepoIdentifier, getBaseRepo
  * @returns The absolute path to the prompts directory, or null if not determinable
  */
 export function getPromptsDir(repoRoot: string): string | null {
-    const config = vscode.workspace.getConfiguration('claudeLanes');
+    const config = vscode.workspace.getConfiguration('lanes');
     const promptsFolder = config.get<string>('promptsFolder', '');
 
     // If user has specified a promptsFolder, use repo-relative storage
@@ -26,12 +26,12 @@ export function getPromptsDir(repoRoot: string): string | null {
         }
         // Security: Reject absolute paths
         else if (path.isAbsolute(trimmedFolder)) {
-            console.warn('Claude Lanes: Absolute paths not allowed in promptsFolder. Using global storage.');
+            console.warn('Lanes: Absolute paths not allowed in promptsFolder. Using global storage.');
             // Fall through to global storage
         }
         // Security: Reject parent directory traversal
         else if (trimmedFolder.includes('..')) {
-            console.warn('Claude Lanes: Invalid promptsFolder path (contains ..). Using global storage.');
+            console.warn('Lanes: Invalid promptsFolder path (contains ..). Using global storage.');
             // Fall through to global storage
         }
         else {
@@ -46,7 +46,7 @@ export function getPromptsDir(repoRoot: string): string | null {
 
     if (!globalStorageUri || !baseRepoPath) {
         // Global storage not initialized - fall back to legacy default
-        console.warn('Claude Lanes: Global storage not initialized. Using legacy prompts location (.claude/lanes).');
+        console.warn('Lanes: Global storage not initialized. Using legacy prompts location (.claude/lanes).');
         return path.join(repoRoot, '.claude', 'lanes');
     }
 
@@ -185,7 +185,7 @@ export class PreviousSessionProvider implements vscode.TreeDataProvider<Previous
                 }
             }
         } catch (err) {
-            console.warn('Claude Lanes: Failed to read worktrees directory:', err);
+            console.warn('Lanes: Failed to read worktrees directory:', err);
         }
 
         return activeSessions;
@@ -225,7 +225,7 @@ export class PreviousSessionProvider implements vscode.TreeDataProvider<Previous
                 items.push(new PreviousSessionItem(sessionName, fullPath));
             }
         } catch (err) {
-            console.warn('Claude Lanes: Failed to read prompts directory:', err);
+            console.warn('Lanes: Failed to read prompts directory:', err);
         }
 
         return items;
