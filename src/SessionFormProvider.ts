@@ -131,6 +131,19 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
+        // Send current workflows to the webview after it's resolved
+        // This ensures workflows are available even if the webview is recreated
+        if (this._workflows.length > 0) {
+            webviewView.webview.postMessage({
+                command: 'updateWorkflows',
+                workflows: this._workflows.map(w => ({
+                    name: w.name,
+                    description: w.description,
+                    isBuiltIn: w.isBuiltIn
+                }))
+            });
+        }
+
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(async message => {
             switch (message.command) {
