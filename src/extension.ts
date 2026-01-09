@@ -708,6 +708,11 @@ export async function activate(context: vscode.ExtensionContext) {
         sessionFormProvider.updateWorkflows(workflows);
     }
 
+    // Register callback for refresh workflows button in session form
+    sessionFormProvider.setOnRefreshWorkflows(async () => {
+        await refreshWorkflows();
+    });
+
     // Initial workflow load
     refreshWorkflows();
 
