@@ -38,6 +38,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
 
     private _view?: vscode.WebviewView;
     private _onSubmit?: SessionFormSubmitCallback;
+    private _onRefreshWorkflows?: () => void | Promise<void>;
     private _workflows: WorkflowMetadata[] = [];
 
     constructor(private readonly _extensionUri: vscode.Uri) {}
@@ -54,6 +55,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                 workflows: workflows.map(w => ({
                     name: w.name,
                     description: w.description,
+                    path: w.path,
                     isBuiltIn: w.isBuiltIn
                 }))
             });
@@ -68,8 +70,16 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Set the callback to be invoked when the refresh workflows button is clicked
+     */
+    public setOnRefreshWorkflows(callback: () => void | Promise<void>): void {
+        this._onRefreshWorkflows = callback;
+    }
+
+    /**
      * Generate HTML options for workflow dropdown
      * Only shows custom workflows (built-in workflows are filtered out)
+     * Uses the full path as the value so MCP server can find the workflow file
      */
     private _getWorkflowOptionsHtml(): string {
         // Filter to only include custom workflows
@@ -81,7 +91,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
 
         let html = '';
         for (const w of custom) {
-            html += `<option value="${this._escapeHtml(w.name)}">${this._escapeHtml(w.name)}</option>`;
+            html += `<option value="${this._escapeHtml(w.path)}">${this._escapeHtml(w.name)}</option>`;
         }
 
         return html;
@@ -139,6 +149,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                 workflows: this._workflows.map(w => ({
                     name: w.name,
                     description: w.description,
+                    path: w.path,
                     isBuiltIn: w.isBuiltIn
                 }))
             });
@@ -168,6 +179,15 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                     }
                     // Clear the form after successful submission
                     this._view?.webview.postMessage({ command: 'clearForm' });
+                    break;
+                case 'refreshWorkflows':
+                    if (this._onRefreshWorkflows) {
+                        try {
+                            await this._onRefreshWorkflows();
+                        } catch (err) {
+                            console.error('Lanes: Workflow refresh failed:', err);
+                        }
+                    }
                     break;
             }
         });
@@ -267,6 +287,23 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             cursor: not-allowed;
         }
 
+        .workflow-control {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .workflow-control select {
+            flex: 1;
+        }
+
+        .workflow-control button {
+            width: auto;
+            min-width: 32px;
+            padding: 6px 10px;
+            flex-shrink: 0;
+        }
+
         .hint {
             font-size: 11px;
             color: var(--vscode-descriptionForeground);
@@ -336,10 +373,13 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
 
         <div class="form-group">
             <label for="workflow">Workflow Template</label>
-            <select id="workflow" name="workflow">
-                <option value="" selected>None (ad-hoc mode)</option>
-                ${this._getWorkflowOptionsHtml()}
-            </select>
+            <div class="workflow-control">
+                <select id="workflow" name="workflow">
+                    <option value="" selected>None (ad-hoc mode)</option>
+                    ${this._getWorkflowOptionsHtml()}
+                </select>
+                <button type="button" id="refreshWorkflowBtn" title="Refresh workflow list" aria-label="Refresh workflow list">↻</button>
+            </div>
             <div class="hint">Optional: Select a workflow to guide Claude through structured phases</div>
         </div>
 
@@ -355,6 +395,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         const acceptanceCriteriaInput = document.getElementById('acceptanceCriteria');
         const permissionModeInput = document.getElementById('permissionMode');
         const workflowInput = document.getElementById('workflow');
+        const refreshWorkflowBtn = document.getElementById('refreshWorkflowBtn');
 
         // Restore saved state when webview is recreated
         const previousState = vscode.getState();
@@ -414,8 +455,18 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             });
         });
 
+        // Handle refresh workflows button click
+        refreshWorkflowBtn.addEventListener('click', () => {
+            refreshWorkflowBtn.disabled = true;
+            refreshWorkflowBtn.textContent = '...';
+            vscode.postMessage({
+                command: 'refreshWorkflows'
+            });
+        });
+
         // Helper function to update workflow dropdown options
         // Only shows custom workflows (built-in workflows are filtered out)
+        // Uses the full path as the value so MCP server can find the workflow file
         function updateWorkflowDropdown(workflows) {
             const currentValue = workflowInput.value;
 
@@ -440,9 +491,10 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
             }
 
             // Add custom workflow options directly (no optgroup needed)
+            // Use the path as value (for MCP server) and name as display text
             custom.forEach(w => {
                 const option = document.createElement('option');
-                option.value = w.name;
+                option.value = w.path;
                 option.textContent = w.name;
                 workflowInput.appendChild(option);
             });
@@ -480,6 +532,8 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                     break;
                 case 'updateWorkflows':
                     updateWorkflowDropdown(message.workflows);
+                    refreshWorkflowBtn.disabled = false;
+                    refreshWorkflowBtn.textContent = '↻';
                     break;
             }
         });
