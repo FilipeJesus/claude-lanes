@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [UNRELEASED]
+
+### Added
+
+- **MCP-based Agentic Workflow System** - Structured workflow (via Model Context Protocol) that guides Claude through planning → implementing → testing → reviewing phases
+- **Custom Workflow Templates** - Create YAML workflow templates in `.claude/lanes/workflows/` with agents, loops, and steps
+- **Workflow Template Dropdown** - Session creation form now shows available workflows with refresh button
+- **MCP Session Creation** - `session_create` endpoint allows programmatic session creation via MCP
+- **Workflow Progress Display** - Session tree view shows current workflow step/task as child items
+- **CodeAgent Abstraction** - Modular `CodeAgent` class for future AI agent extensibility (preparing for multi-agent support)
+- **Built-in Workflow Templates** - Feature, bugfix, refactor, and default workflow templates in `workflows/` included as references
+
+### Changed
+
+- Built-in workflows are now template-only (not selectable in dropdown, copy to use)
+- Workflow and task info moved to child item in session tree view
+
+### Fixed
+
+- Workflow path resolution for custom workflows
+- Hidden built-in workflows from sidebar tree view
+- Added explicit step boundaries to prevent skipping workflow steps
+- Workflow dropdown now populates correctly after webview recreation
+
 ## [0.10.4] - 2026-01-04
 
 ### Changed

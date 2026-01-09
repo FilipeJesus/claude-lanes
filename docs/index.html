@@ -255,57 +255,67 @@
         </div>
     </section>
 
-    <!-- Claude Harness Section -->
+    <!-- Workflow System Section -->
     <section id="harness" class="py-24 bg-gray-100 dark:bg-vscode-sidebar border-y border-gray-200 dark:border-white/5">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 class="text-3xl font-bold text-gray-900 dark:text-white text-center mb-4">Claude Harness</h2>
+            <h2 class="text-3xl font-bold text-gray-900 dark:text-white text-center mb-4">Structured Workflow System</h2>
             <p class="text-gray-600 dark:text-gray-400 text-center mb-12 max-w-2xl mx-auto">
-                For long-running agent sessions, use a structured approach based on
-                <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents" class="text-vscode-accent hover:underline">Anthropic's research</a>
-                to keep agents on track across context windows.
+                Lanes includes MCP-based workflows that guide Claude through structured phases: Plan → Implement → Test → Review.
+                Built on <a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents" class="text-vscode-accent hover:underline">Anthropic's research</a>
+                for long-running agent reliability.
             </p>
 
             <div class="bg-white dark:bg-[#1e1e1e] rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
                 <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-black/30">
-                    <span class="text-xs text-gray-600 dark:text-gray-500 font-mono">features.json</span>
+                    <span class="text-xs text-gray-600 dark:text-gray-500 font-mono">workflow.yaml</span>
                 </div>
-                <pre class="p-4 text-sm font-mono text-gray-700 dark:text-gray-300 overflow-x-auto"><code>{
-  "features": [
-    {
-      "id": "login-form",
-      "description": "Create login form UI",
-      "passes": <span class="text-green-400">true</span>
-    },
-    {
-      "id": "auth-api",
-      "description": "Implement authentication API",
-      "passes": <span class="text-yellow-400">false</span>  <span class="text-gray-500">// Claude is working on this</span>
-    },
-    {
-      "id": "session-persistence",
-      "description": "Persist user session",
-      "passes": <span class="text-gray-500">false</span>
-    }
-  ]
-}</code></pre>
+                <pre class="p-4 text-sm font-mono text-gray-700 dark:text-gray-300 overflow-x-auto"><code><span class="text-blue-400">name:</span> Feature Development Workflow
+<span class="text-blue-400">description:</span> Structured workflow with plan, implement, test, review
+
+<span class="text-blue-400">steps:</span>
+  - <span class="text-blue-400">id:</span> plan
+    <span class="text-blue-400">type:</span> action
+    <span class="text-blue-400">agent:</span> orchestrator
+    <span class="text-blue-400">instructions:</span> Analyze goal and break into features...
+
+  - <span class="text-blue-400">id:</span> implement
+    <span class="text-blue-400">type:</span> loop
+    <span class="text-blue-400">iterations:</span> features.<span class="text-gray-500">*</span>
+    <span class="text-blue-400">steps:</span>
+      - <span class="text-blue-400">agent:</span> coder
+        <span class="text-blue-400">instructions:</span> Implement feature...
+      - <span class="text-blue-400">agent:</span> test-engineer
+        <span class="text-blue-400">instructions:</span> Write tests...
+
+  - <span class="text-blue-400">id:</span> review
+    <span class="text-blue-400">type:</span> action
+    <span class="text-blue-400">agent:</span> code-reviewer
+    <span class="text-blue-400">instructions:</span> Review all changes...</code></pre>
             </div>
 
             <div class="mt-8 grid md:grid-cols-3 gap-6">
                 <div class="text-center">
-                    <div class="text-2xl mb-2">📋</div>
-                    <h4 class="font-bold text-gray-900 dark:text-white mb-1">Define Scope</h4>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Prevents over-ambition and premature completion claims</p>
+                    <div class="text-2xl mb-2">🎯</div>
+                    <h4 class="font-bold text-gray-900 dark:text-white mb-1">Structured Phases</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Enforces plan → implement → test → review phases with clear checkpoints</p>
+                </div>
+                <div class="text-center">
+                    <div class="text-2xl mb-2">🤝</div>
+                    <h4 class="font-bold text-gray-900 dark:text-white mb-1">Agent Specialization</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Dedicated agents for coding, testing, and reviewing ensure quality</p>
                 </div>
                 <div class="text-center">
                     <div class="text-2xl mb-2">📊</div>
-                    <h4 class="font-bold text-gray-900 dark:text-white mb-1">Track Progress</h4>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Clear pass/fail status for each feature</p>
+                    <h4 class="font-bold text-gray-900 dark:text-white mb-1">Progress Tracking</h4>
+                    <p class="text-sm text-gray-600 dark:text-gray-400">MCP integration tracks workflow state across context windows</p>
                 </div>
-                <div class="text-center">
-                    <div class="text-2xl mb-2">🔄</div>
-                    <h4 class="font-bold text-gray-900 dark:text-white mb-1">Enable Handoffs</h4>
-                    <p class="text-sm text-gray-600 dark:text-gray-400">Fresh sessions can quickly assess current state</p>
-                </div>
+            </div>
+
+            <div class="mt-8 text-center">
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                    For simpler use cases, Lanes also supports a lightweight features.json approach.
+                    <a href="https://github.com/FilipeJesus/lanes/blob/main/docs/CLAUDE-HARNESS.md" class="text-vscode-accent hover:underline">Learn more in the docs</a>.
+                </p>
             </div>
         </div>
     </section>
