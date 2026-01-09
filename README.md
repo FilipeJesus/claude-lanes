@@ -21,6 +21,7 @@ Lanes uses Git Worktrees to give every agent session its own isolated file syste
 - **Real-Time Status** - See which agents are working, waiting, or have errors
 - **Built-in Diff Viewer** - Review all changes before merging back
 - **One-Click Cleanup** - Delete the worktree when done, keep the branch for merging
+- **Workflow System** - Optional MCP-based workflows guide Claude through structured phases (plan → implement → test → review)
 
 Visit [our website](https://lanes.pro) for more information.
 
@@ -85,7 +86,7 @@ Click any session to resume it. Click the trash icon to delete (branch is preser
 
 ## Advanced
 
-- **[Claude Harness](docs/CLAUDE-HARNESS.md)** - Structured task management for long-running sessions
+- **[Claude Harness & Workflows](docs/CLAUDE-HARNESS.md)** - Structured task management and MCP-based workflow guides for long-running sessions
 - **[Website](https://lanes.pro)** - Full documentation and guides
 
 ---
@@ -94,9 +95,9 @@ Click any session to resume it. Click the trash icon to delete (branch is preser
 
 - [x] Session status indicators (idle, working, waiting)
 - [x] Session resume functionality
+- [x] Session templates for common workflows
 - [ ] Windows support
 - [ ] Merge assistant (review and merge session branches)
-- [ ] Session templates for common workflows
 - [ ] Multi-repo support
 
 ---
