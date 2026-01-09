@@ -69,31 +69,19 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
 
     /**
      * Generate HTML options for workflow dropdown
+     * Only shows custom workflows (built-in workflows are filtered out)
      */
     private _getWorkflowOptionsHtml(): string {
-        if (this._workflows.length === 0) {
+        // Filter to only include custom workflows
+        const custom = this._workflows.filter(w => !w.isBuiltIn);
+
+        if (custom.length === 0) {
             return '';
         }
 
-        const builtIn = this._workflows.filter(w => w.isBuiltIn);
-        const custom = this._workflows.filter(w => !w.isBuiltIn);
-
         let html = '';
-
-        if (builtIn.length > 0) {
-            html += '<optgroup label="Built-in">';
-            for (const w of builtIn) {
-                html += `<option value="${this._escapeHtml(w.name)}">${this._escapeHtml(w.name)}</option>`;
-            }
-            html += '</optgroup>';
-        }
-
-        if (custom.length > 0) {
-            html += '<optgroup label="Custom">';
-            for (const w of custom) {
-                html += `<option value="${this._escapeHtml(w.name)}">${this._escapeHtml(w.name)}</option>`;
-            }
-            html += '</optgroup>';
+        for (const w of custom) {
+            html += `<option value="${this._escapeHtml(w.name)}">${this._escapeHtml(w.name)}</option>`;
         }
 
         return html;
@@ -414,6 +402,7 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         });
 
         // Helper function to update workflow dropdown options
+        // Only shows custom workflows (built-in workflows are filtered out)
         function updateWorkflowDropdown(workflows) {
             const currentValue = workflowInput.value;
 
@@ -430,32 +419,20 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
-            const builtIn = workflows.filter(w => w.isBuiltIn);
+            // Filter to only include custom workflows
             const custom = workflows.filter(w => !w.isBuiltIn);
 
-            if (builtIn.length > 0) {
-                const group = document.createElement('optgroup');
-                group.label = 'Built-in';
-                builtIn.forEach(w => {
-                    const option = document.createElement('option');
-                    option.value = w.name;
-                    option.textContent = w.name;
-                    group.appendChild(option);
-                });
-                workflowInput.appendChild(group);
+            if (custom.length === 0) {
+                return;
             }
 
-            if (custom.length > 0) {
-                const group = document.createElement('optgroup');
-                group.label = 'Custom';
-                custom.forEach(w => {
-                    const option = document.createElement('option');
-                    option.value = w.name;
-                    option.textContent = w.name;
-                    group.appendChild(option);
-                });
-                workflowInput.appendChild(group);
-            }
+            // Add custom workflow options directly (no optgroup needed)
+            custom.forEach(w => {
+                const option = document.createElement('option');
+                option.value = w.name;
+                option.textContent = w.name;
+                workflowInput.appendChild(option);
+            });
 
             // Restore previous selection if it still exists
             if (currentValue) {
