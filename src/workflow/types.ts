@@ -107,6 +107,8 @@ export interface WorkflowState {
   tasks: Record<string, Task[]>;
   /** Outputs from completed steps, keyed by "step.task.subStep" or "step" */
   outputs: Record<string, string>;
+  /** Brief summary of the user's request (recommended: keep under 100 characters) */
+  summary?: string;
 }
 
 /**

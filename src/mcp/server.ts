@@ -72,8 +72,9 @@ const templatesDir = path.join(__dirname, '../../workflows');
 
 /**
  * Initializes or restores the workflow state machine.
+ * @param summary - Optional brief summary of the user's request (max 10 words)
  */
-async function initializeMachine(): Promise<WorkflowStateMachine> {
+async function initializeMachine(summary?: string): Promise<WorkflowStateMachine> {
   // Try to load existing state
   const existingState = await tools.loadState(worktreePath);
 
@@ -85,7 +86,7 @@ async function initializeMachine(): Promise<WorkflowStateMachine> {
   }
 
   // Start fresh
-  const result = await tools.workflowStart(worktreePath, workflowName, templatesDir);
+  const result = await tools.workflowStart(worktreePath, workflowName, templatesDir, summary);
   return result.machine;
 }
 
@@ -105,7 +106,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         'If the workflow was previously started, returns the current status.',
       inputSchema: {
         type: 'object' as const,
-        properties: {},
+        properties: {
+          summary: {
+            type: 'string',
+            description: 'Brief summary of the user\'s request (max 10 words). Displayed in the VS Code sidebar.',
+          },
+        },
         required: [],
       },
     },
@@ -213,7 +219,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'workflow_start': {
         // Initialize or restore workflow
         if (!machine) {
-          machine = await initializeMachine();
+          // Extract optional summary from args, enforce max length
+          let summary: string | undefined;
+          if (typeof toolArgs?.summary === 'string' && toolArgs.summary.trim()) {
+            const trimmed = toolArgs.summary.trim();
+            // Truncate to approximately 10 words (max ~100 chars)
+            summary = trimmed.length > 100 ? trimmed.substring(0, 97) + '...' : trimmed;
+          }
+          machine = await initializeMachine(summary);
         }
         const status = tools.workflowStatus(machine);
         return {
