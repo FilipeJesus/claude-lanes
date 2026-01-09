@@ -10,7 +10,6 @@ features.json
 tests.json
 
 # Claude Code session files
-.claude/lanes
 .claude-session
 .claude-status
 
