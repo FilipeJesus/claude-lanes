@@ -299,6 +299,7 @@ export interface PendingSessionConfig {
   name: string;
   sourceBranch: string;
   prompt?: string;
+  workflow?: string;
   requestedAt: string;
 }
 
@@ -309,12 +310,14 @@ export interface PendingSessionConfig {
  * @param name Session name (will be sanitized for git branch)
  * @param sourceBranch Source branch to create worktree from
  * @param prompt Optional starting prompt for Claude
+ * @param workflow Optional workflow template name to use
  * @returns Result object with success status, config path, or error
  */
 export async function createSession(
   name: string,
   sourceBranch: string,
-  prompt?: string
+  prompt?: string,
+  workflow?: string
 ): Promise<CreateSessionResult> {
   try {
     // 1. Validate and sanitize the session name
@@ -345,6 +348,7 @@ export async function createSession(
       name: sanitizedName,
       sourceBranch,
       prompt: prompt?.trim() || undefined,
+      workflow: workflow?.trim() || undefined,
       requestedAt: new Date().toISOString()
     };
 
