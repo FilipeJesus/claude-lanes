@@ -7,6 +7,7 @@ Run multiple Claude Code sessions in parallel, each in its own isolated Git work
 - **Real-time status**: See at a glance which agents are working, waiting, or have errors
 - **Built-in diff viewer**: Review all changes before merging back to your main branch
 - **One-click cleanup**: Delete the worktree when done, keep the branch for merging
+- **Workflow guides**: Optional structured workflows guide Claude through plan → implement → test → review phases
 
 Visit [www.lanes.pro](https://lanes.pro) to learn more about Lanes.
 
