@@ -135,12 +135,14 @@ export async function loadState(worktreePath: string): Promise<WorkflowState | n
  * @param worktreePath - The worktree root path for state persistence
  * @param workflowName - Name of the workflow template (without .yaml extension)
  * @param templatesDir - Directory containing workflow templates
+ * @param summary - Optional brief summary of the user's request (max 10 words)
  * @returns The created state machine and initial status
  */
 export async function workflowStart(
   worktreePath: string,
   workflowName: string,
-  templatesDir: string
+  templatesDir: string,
+  summary?: string
 ): Promise<WorkflowStartResult> {
   // Load the workflow template
   const templatePath = path.join(templatesDir, `${workflowName}.yaml`);
@@ -151,6 +153,11 @@ export async function workflowStart(
 
   // Start the workflow
   const status = machine.start();
+
+  // Set summary if provided and non-empty
+  if (summary && summary.trim()) {
+    machine.setSummary(summary.trim());
+  }
 
   // Save initial state
   await saveState(worktreePath, machine.getState());

@@ -452,6 +452,22 @@ export class WorkflowStateMachine {
   }
 
   /**
+   * Sets a brief summary of the user's request.
+   * @param summary - Brief summary (recommended: keep under 100 characters)
+   */
+  setSummary(summary: string): void {
+    // Sanitize: trim whitespace, remove control characters, limit length
+    const sanitized = summary
+      .trim()
+      .replace(/[\x00-\x1F\x7F]/g, '') // Remove control characters
+      .substring(0, 100); // Enforce reasonable max length
+
+    if (sanitized) {
+      this.state.summary = sanitized;
+    }
+  }
+
+  /**
    * Creates a WorkflowStateMachine from persisted state.
    * @param template - The workflow template
    * @param state - The persisted state to restore

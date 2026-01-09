@@ -530,6 +530,8 @@ export interface WorkflowStatus {
     workflow?: string;
     step?: string;
     progress?: string;
+    /** Brief summary of the user's request (recommended: keep under 100 characters) */
+    summary?: string;
 }
 
 /**
@@ -564,11 +566,17 @@ export function getWorkflowStatus(worktreePath: string): WorkflowStatus | null {
             progress = `Task ${state.task.index + 1}`;
         }
 
+        // Extract summary if present
+        const summary = typeof state.summary === 'string' && state.summary.trim() !== ''
+            ? state.summary
+            : undefined;
+
         return {
             active: isActive,
             workflow,
             step,
-            progress
+            progress,
+            summary
         };
     } catch {
         // Graceful fallback for any error (invalid JSON, read error, etc.)
@@ -629,8 +637,9 @@ export class SessionItem extends vscode.TreeItem {
     }
 
     /**
-     * Get the description text based on Claude status, feature status, and workflow status
+     * Get the description text based on Claude status, feature status, and workflow status.
      * Priority: waiting_for_user > working > workflow step > feature ID > "Complete" > "Active"
+     * Summary is appended when available using bullet separator.
      */
     private getDescriptionForStatus(
         claudeStatus?: ClaudeStatus | null,
@@ -638,6 +647,7 @@ export class SessionItem extends vscode.TreeItem {
         workflowStatus?: WorkflowStatus | null
     ): string {
         const featureId = featureStatus?.currentFeature?.id;
+        const summary = workflowStatus?.summary;
 
         // Build workflow step info string if available
         let workflowStepInfo: string | undefined;
@@ -647,25 +657,35 @@ export class SessionItem extends vscode.TreeItem {
                 : workflowStatus.step;
         }
 
+        // Helper to append summary if available
+        const withSummary = (base: string): string => {
+            return summary ? `${base} - ${summary}` : base;
+        };
+
         if (claudeStatus?.status === 'waiting_for_user') {
             // Prefer workflow step info, then feature ID
             const detail = workflowStepInfo || featureId;
-            return detail ? `Waiting - ${detail}` : 'Waiting for input';
+            const base = detail ? `Waiting - ${detail}` : 'Waiting for input';
+            return withSummary(base);
         }
 
         if (claudeStatus?.status === 'working') {
             // Prefer workflow step info, then feature ID
             const detail = workflowStepInfo || featureId;
-            return detail ? `Working - ${detail}` : 'Working...';
+            const base = detail ? `Working - ${detail}` : 'Working...';
+            return withSummary(base);
         }
 
         // Fall back to workflow step info, then feature-based description
         if (workflowStepInfo) {
-            return workflowStepInfo;
+            return withSummary(workflowStepInfo);
         } else if (featureId) {
-            return featureId;
+            return withSummary(featureId);
         } else if (featureStatus?.allComplete) {
-            return "Complete";
+            return withSummary("Complete");
+        } else if (summary) {
+            // If we only have a summary and nothing else, show it directly
+            return summary;
         } else {
             return "Active";
         }
