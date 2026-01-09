@@ -12,6 +12,7 @@ tests.json
 # Claude Code session files
 .claude-session
 .claude-status
+workflow-state.json
 
 # Git worktrees directory
 .worktrees/
