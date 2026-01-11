@@ -4,12 +4,15 @@ node_modules
 .vscode-test/
 .vscode/settings.json
 *.vsix
+.DS_Store
 
 # Claude Code session files
 .claude-session
 .claude-status
 workflow-state.json
+features.json
 tests.json
+.claude/settings.local.json
 
 # Git worktrees directory
 .worktrees/
