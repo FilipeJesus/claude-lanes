@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as os from 'os';
+import { execSync } from 'child_process';
 import {
     ClaudeSessionProvider,
     SessionItem,
@@ -27,7 +28,7 @@ import { WorkflowsProvider } from './WorkflowsProvider';
 import { discoverWorkflows, WorkflowMetadata, loadWorkflowTemplateFromString, WorkflowValidationError } from './workflow';
 import { addProject, removeProject, clearCache as clearProjectManagerCache, initialize as initializeProjectManagerService } from './ProjectManagerService';
 import { sanitizeSessionName as _sanitizeSessionName, getErrorMessage } from './utils';
-import { ClaudeCodeAgent, CodeAgent } from './codeAgents';
+import { ClaudeCodeAgent, OpenCodeAgent, CodeAgent } from './codeAgents';
 // Use local reference for internal use
 const sanitizeSessionName = _sanitizeSessionName;
 
@@ -52,6 +53,25 @@ const PENDING_SESSIONS_DIR = path.join(os.homedir(), '.claude', 'lanes', 'pendin
  * Located at extension root/workflows/ (from compiled code in out/, go up one level)
  */
 const WORKFLOWS_DIR = path.join(__dirname, '..', 'workflows');
+
+/**
+ * Get the preferred code agent based on user settings.
+ * Reads the `lanes.preferredCodeAgent` setting and returns the appropriate agent instance.
+ *
+ * @returns CodeAgent instance (ClaudeCodeAgent or OpenCodeAgent)
+ */
+function getPreferredCodeAgent(): CodeAgent {
+    const config = vscode.workspace.getConfiguration('lanes');
+    const preferredAgent = config.get<string>('preferredCodeAgent', 'claude');
+
+    switch (preferredAgent) {
+        case 'opencode':
+            return new OpenCodeAgent();
+        case 'claude':
+        default:
+            return new ClaudeCodeAgent();
+    }
+}
 
 /**
  * Get available workflow template names from the workflows directory.
@@ -657,9 +677,9 @@ export async function activate(context: vscode.ExtensionContext) {
         });
     }
 
-    // Create the global code agent instance
+    // Create the global code agent instance based on user settings
     // This provides agent-specific behavior for terminal commands, file naming, etc.
-    const codeAgent = new ClaudeCodeAgent();
+    const codeAgent = getPreferredCodeAgent();
     console.log(`Code agent initialized: ${codeAgent.displayName}`);
 
     // Initialize global storage context for session file storage
@@ -2026,15 +2046,15 @@ export async function getOrCreateExtensionSettingsFile(worktreePath: string, wor
             // Fall back to relative paths if global storage not initialized
             const statusRelPath = getRelativeFilePath('claudeStatusPath');
             const sessionRelPath = getRelativeFilePath('claudeSessionPath');
-            statusFilePath = `${statusRelPath}.claude-status`;
-            sessionFilePath = `${sessionRelPath}.claude-session`;
+            statusFilePath = `${statusRelPath}${codeAgent?.getStatusFileName() || '.claude-status'}`;
+            sessionFilePath = `${sessionRelPath}${codeAgent?.getSessionFileName() || '.claude-session'}`;
         }
     } else {
         // Use relative paths within the worktree
         const statusRelPath = getRelativeFilePath('claudeStatusPath');
         const sessionRelPath = getRelativeFilePath('claudeSessionPath');
-        statusFilePath = `${statusRelPath}.claude-status`;
-        sessionFilePath = `${sessionRelPath}.claude-session`;
+        statusFilePath = `${statusRelPath}${codeAgent?.getStatusFileName() || '.claude-status'}`;
+        sessionFilePath = `${sessionRelPath}${codeAgent?.getSessionFileName() || '.claude-session'}`;
 
         // Ensure status file directory exists if configured
         if (statusRelPath) {
@@ -2056,9 +2076,33 @@ export async function getOrCreateExtensionSettingsFile(worktreePath: string, wor
         // Use CodeAgent to generate hooks
         const hookConfigs = codeAgent.generateHooksConfig(worktreePath, sessionFilePath, statusFilePath);
 
+        // Execute SetupPlugin commands for OpenCode
+        // SetupPlugin is a special event that creates plugin files, not a real hook event
+        for (const hookConfig of hookConfigs) {
+            if (hookConfig.event === 'SetupPlugin') {
+                for (const cmd of hookConfig.commands) {
+                    if (cmd.type === 'command' && cmd.command) {
+                        try {
+                            // Execute the plugin setup command synchronously
+                            execSync(cmd.command, { cwd: worktreePath, encoding: 'utf-8' });
+                            console.log('Lanes: Successfully executed SetupPlugin command');
+                        } catch (error) {
+                            console.error('Lanes: Failed to setup plugin:', error);
+                            throw new Error(`Failed to setup code agent plugin: ${getErrorMessage(error)}`);
+                        }
+                    }
+                }
+            }
+        }
+
         // Convert HookConfig[] to ClaudeSettings hooks format
+        // Filter out SetupPlugin events as they are not real hook events
         hooks = {};
         for (const hookConfig of hookConfigs) {
+            if (hookConfig.event === 'SetupPlugin') {
+                continue; // Skip SetupPlugin, it was already executed
+            }
+
             const entry: HookEntry = {
                 hooks: hookConfig.commands
             };

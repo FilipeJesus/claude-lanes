@@ -970,6 +970,457 @@ suite('Extension Integration', () => {
 	});
 });
 
+suite('OpenCodeAgent', () => {
+	const { OpenCodeAgent } = require('../codeAgents/OpenCodeAgent');
+
+	let agent: any;
+
+	setup(() => {
+		agent = new OpenCodeAgent();
+	});
+
+	suite('Configuration', () => {
+		test('should have correct name', () => {
+			assert.strictEqual(agent.name, 'opencode', 'Agent name should be opencode');
+		});
+
+		test('should have correct display name', () => {
+			assert.strictEqual(agent.displayName, 'OpenCode', 'Display name should be OpenCode');
+		});
+
+		test('should have correct CLI command', () => {
+			assert.strictEqual(agent.cliCommand, 'opencode', 'CLI command should be opencode');
+		});
+	});
+
+	suite('File Naming', () => {
+		test('should return correct session file name', () => {
+			assert.strictEqual(agent.getSessionFileName(), '.opencode-session', 'Session file should be .opencode-session');
+		});
+
+		test('should return correct status file name', () => {
+			assert.strictEqual(agent.getStatusFileName(), '.opencode-status', 'Status file should be .opencode-status');
+		});
+
+		test('should return correct settings file name', () => {
+			assert.strictEqual(agent.getSettingsFileName(), 'opencode.json', 'Settings file should be opencode.json');
+		});
+
+		test('should return correct data directory', () => {
+			assert.strictEqual(agent.getDataDirectory(), '.opencode', 'Data directory should be .opencode');
+		});
+	});
+
+	suite('Terminal Configuration', () => {
+		test('should return terminal name with OpenCode prefix', () => {
+			const name = agent.getTerminalName('test-session');
+			assert.strictEqual(name, 'OpenCode: test-session', 'Terminal name should have OpenCode prefix');
+		});
+
+		test('should return terminal icon configuration', () => {
+			const icon = agent.getTerminalIcon();
+			assert.ok(icon, 'Should return icon configuration');
+			assert.strictEqual(typeof icon.id, 'string', 'Icon should have id');
+		});
+	});
+
+	suite('buildStartCommand', () => {
+		test('should use opencode run format', () => {
+			const command = agent.buildStartCommand({ prompt: 'test' });
+			assert.ok(command.startsWith('opencode run'), 'Start command should use "opencode run"');
+		});
+
+		test('should include prompt with proper escaping', () => {
+			const command = agent.buildStartCommand({ prompt: 'test prompt' });
+			assert.ok(command.includes("'test prompt'"), 'Should include prompt in single quotes');
+		});
+
+		test('should escape single quotes in prompt', () => {
+			const command = agent.buildStartCommand({ prompt: "it's a test" });
+			assert.ok(command.includes("'it'\\''s a test'"), 'Should escape single quotes in prompt');
+		});
+
+		test('should include config path when provided', () => {
+			const command = agent.buildStartCommand({
+				prompt: 'test',
+				settingsPath: '/path/to/opencode.json'
+			});
+			assert.ok(command.includes('--config'), 'Should include --config flag');
+			assert.ok(command.includes('/path/to/opencode.json'), 'Should include settings path');
+		});
+
+		test('should include MCP config path when provided', () => {
+			const command = agent.buildStartCommand({
+				prompt: 'test',
+				mcpConfigPath: '/path/to/mcp-config.json'
+			});
+			assert.ok(command.includes('--mcp-config'), 'Should include --mcp-config flag');
+			assert.ok(command.includes('/path/to/mcp-config.json'), 'Should include MCP config path');
+		});
+
+		test('should place MCP config before other flags', () => {
+			const command = agent.buildStartCommand({
+				prompt: 'test',
+				mcpConfigPath: '/path/to/mcp.json',
+				settingsPath: '/path/to/settings.json'
+			});
+			const mcpPos = command.indexOf('--mcp-config');
+			const configPos = command.indexOf('--config');
+			assert.ok(mcpPos < configPos, 'MCP config should come before settings config');
+		});
+
+		test('should include permission flag when permission mode is provided', () => {
+			const command = agent.buildStartCommand({
+				prompt: 'test',
+				permissionMode: 'allowEdits'
+			});
+			assert.ok(command.includes('--permission-edit allow'), 'Should include permission flag');
+		});
+
+		test('should not include permission flag for default mode', () => {
+			const command = agent.buildStartCommand({
+				prompt: 'test',
+				permissionMode: 'default'
+			});
+			assert.ok(!command.includes('--permission'), 'Should not include permission flag for default');
+		});
+
+		test('should work without prompt', () => {
+			const command = agent.buildStartCommand({
+				settingsPath: '/path/to/settings.json'
+			});
+			assert.ok(command.startsWith('opencode run'), 'Should start with opencode run');
+			assert.ok(command.includes('--config'), 'Should include config flag');
+		});
+	});
+
+	suite('buildResumeCommand', () => {
+		test('should use --session flag instead of --resume', () => {
+			const command = agent.buildResumeCommand('test-session-123', {});
+			assert.ok(command.includes('--session test-session-123'), 'Should use --session flag');
+			assert.ok(!command.includes('--resume'), 'Should not use --resume flag');
+		});
+
+		test('should validate session ID format', () => {
+			assert.throws(
+				() => agent.buildResumeCommand('invalid session!', {}),
+				/Invalid session ID format/,
+				'Should reject invalid session ID with special characters'
+			);
+		});
+
+		test('should accept valid alphanumeric session IDs', () => {
+			assert.doesNotThrow(
+				() => agent.buildResumeCommand('session-123', {}),
+				'Should accept session ID with hyphens'
+			);
+
+			assert.doesNotThrow(
+				() => agent.buildResumeCommand('session_456', {}),
+				'Should accept session ID with underscores'
+			);
+
+			assert.doesNotThrow(
+				() => agent.buildResumeCommand('sessionABC789', {}),
+				'Should accept alphanumeric session ID'
+			);
+		});
+
+		test('should include config path when provided', () => {
+			const command = agent.buildResumeCommand('test-session', {
+				settingsPath: '/path/to/opencode.json'
+			});
+			assert.ok(command.includes('--config'), 'Should include --config flag');
+			assert.ok(command.includes('/path/to/opencode.json'), 'Should include settings path');
+		});
+
+		test('should include MCP config path when provided', () => {
+			const command = agent.buildResumeCommand('test-session', {
+				mcpConfigPath: '/path/to/mcp-config.json'
+			});
+			assert.ok(command.includes('--mcp-config'), 'Should include --mcp-config flag');
+			assert.ok(command.includes('/path/to/mcp-config.json'), 'Should include MCP config path');
+		});
+
+		test('should place MCP config before other flags', () => {
+			const command = agent.buildResumeCommand('test-session', {
+				mcpConfigPath: '/path/to/mcp.json',
+				settingsPath: '/path/to/settings.json'
+			});
+			const mcpPos = command.indexOf('--mcp-config');
+			const configPos = command.indexOf('--config');
+			const sessionPos = command.indexOf('--session');
+			assert.ok(mcpPos < configPos && configPos < sessionPos, 'Flags should be in correct order');
+		});
+	});
+
+	suite('Session Data Parsing', () => {
+		test('should parse valid session data', () => {
+			const content = JSON.stringify({
+				sessionId: 'test-session-123',
+				timestamp: '2024-01-01T00:00:00Z'
+			});
+			const data = agent.parseSessionData(content);
+			assert.ok(data, 'Should parse valid session data');
+			assert.strictEqual(data.sessionId, 'test-session-123', 'Should extract session ID');
+			assert.strictEqual(data.agentName, 'opencode', 'Should set agent name');
+		});
+
+		test('should return null for missing sessionId', () => {
+			const content = JSON.stringify({ timestamp: '2024-01-01T00:00:00Z' });
+			const data = agent.parseSessionData(content);
+			assert.strictEqual(data, null, 'Should return null for missing sessionId');
+		});
+
+		test('should return null for invalid session ID format', () => {
+			const content = JSON.stringify({ sessionId: 'invalid session!' });
+			const data = agent.parseSessionData(content);
+			assert.strictEqual(data, null, 'Should return null for invalid session ID format');
+		});
+
+		test('should accept valid alphanumeric session IDs', () => {
+			const validIds = ['session-123', 'session_456', 'sessionABC789'];
+			for (const id of validIds) {
+				const content = JSON.stringify({ sessionId: id });
+				const data = agent.parseSessionData(content);
+				assert.ok(data, `Should accept valid session ID: ${id}`);
+				assert.strictEqual(data.sessionId, id);
+			}
+		});
+
+		test('should return null for invalid JSON', () => {
+			const data = agent.parseSessionData('not json');
+			assert.strictEqual(data, null, 'Should return null for invalid JSON');
+		});
+
+		test('should preserve optional fields', () => {
+			const content = JSON.stringify({
+				sessionId: 'test-123',
+				timestamp: '2024-01-01T00:00:00Z',
+				workflow: 'feature'
+			});
+			const data = agent.parseSessionData(content);
+			assert.ok(data, 'Should parse session data');
+			assert.strictEqual(data.timestamp, '2024-01-01T00:00:00Z', 'Should preserve timestamp');
+			assert.strictEqual(data.workflow, 'feature', 'Should preserve workflow');
+		});
+	});
+
+	suite('Status Parsing', () => {
+		test('should parse valid status data', () => {
+			const content = JSON.stringify({
+				status: 'working',
+				timestamp: '2024-01-01T00:00:00Z'
+			});
+			const status = agent.parseStatus(content);
+			assert.ok(status, 'Should parse valid status');
+			assert.strictEqual(status.status, 'working', 'Should extract status');
+			assert.strictEqual(status.timestamp, '2024-01-01T00:00:00Z', 'Should extract timestamp');
+		});
+
+		test('should return null for missing status field', () => {
+			const content = JSON.stringify({ timestamp: '2024-01-01T00:00:00Z' });
+			const status = agent.parseStatus(content);
+			assert.strictEqual(status, null, 'Should return null for missing status');
+		});
+
+		test('should return null for invalid JSON', () => {
+			const status = agent.parseStatus('not json');
+			assert.strictEqual(status, null, 'Should return null for invalid JSON');
+		});
+
+		test('should preserve optional message field', () => {
+			const content = JSON.stringify({
+				status: 'error',
+				timestamp: '2024-01-01T00:00:00Z',
+				message: 'Something went wrong'
+			});
+			const status = agent.parseStatus(content);
+			assert.ok(status, 'Should parse status');
+			assert.strictEqual(status.message, 'Something went wrong', 'Should preserve message');
+		});
+	});
+
+	suite('Valid Status States', () => {
+		test('should return list of valid status states', () => {
+			const states = agent.getValidStatusStates();
+			assert.ok(Array.isArray(states), 'Should return an array');
+			assert.ok(states.length > 0, 'Should have at least one state');
+		});
+
+		test('should include standard status states', () => {
+			const states = agent.getValidStatusStates();
+			assert.ok(states.includes('working'), 'Should include working state');
+			assert.ok(states.includes('waiting_for_user'), 'Should include waiting_for_user state');
+			assert.ok(states.includes('idle'), 'Should include idle state');
+		});
+	});
+
+	suite('Permission Modes', () => {
+		test('should return list of permission modes', () => {
+			const modes = agent.getPermissionModes();
+			assert.ok(Array.isArray(modes), 'Should return an array');
+			assert.ok(modes.length > 0, 'Should have at least one mode');
+		});
+
+		test('should include default permission mode', () => {
+			const modes = agent.getPermissionModes();
+			const defaultMode = modes.find((m: any) => m.id === 'default');
+			assert.ok(defaultMode, 'Should include default mode');
+			assert.strictEqual(defaultMode.label, 'Default', 'Default mode should have correct label');
+		});
+
+		test('should include OpenCode-specific permission modes', () => {
+			const modes = agent.getPermissionModes();
+			const allowEdits = modes.find((m: any) => m.id === 'allowEdits');
+			assert.ok(allowEdits, 'Should include allowEdits mode');
+			assert.ok(allowEdits.flag.includes('--permission-edit'), 'allowEdits should have permission-edit flag');
+		});
+
+		test('should validate permission modes', () => {
+			assert.ok(agent.validatePermissionMode('default'), 'Should validate default mode');
+			assert.ok(agent.validatePermissionMode('allowEdits'), 'Should validate allowEdits mode');
+			assert.ok(!agent.validatePermissionMode('invalidMode'), 'Should reject invalid mode');
+		});
+
+		test('should return empty flag for default mode', () => {
+			const flag = agent.getPermissionFlag('default');
+			assert.strictEqual(flag, '', 'Default mode should have empty flag');
+		});
+
+		test('should return correct flag for non-default modes', () => {
+			const flag = agent.getPermissionFlag('allowEdits');
+			assert.ok(flag.includes('--permission-edit allow'), 'Should return correct permission flag');
+		});
+	});
+
+	suite('Hook Events', () => {
+		test('should return list of hook events', () => {
+			const events = agent.getHookEvents();
+			assert.ok(Array.isArray(events), 'Should return an array');
+			assert.ok(events.length > 0, 'Should have at least one event');
+		});
+
+		test('should include OpenCode plugin events', () => {
+			const events = agent.getHookEvents();
+			assert.ok(events.includes('session.created'), 'Should include session.created event');
+			assert.ok(events.includes('session.status'), 'Should include session.status event');
+		});
+	});
+
+	suite('Plugin Configuration', () => {
+		test('should generate plugin config instead of JSON hooks', () => {
+			const hooks = agent.generateHooksConfig(
+				'/worktree/path',
+				'/path/to/session',
+				'/path/to/status'
+			);
+			assert.ok(Array.isArray(hooks), 'Should return array of hooks');
+			assert.ok(hooks.length > 0, 'Should generate at least one hook');
+		});
+
+		test('should generate SetupPlugin event', () => {
+			const hooks = agent.generateHooksConfig(
+				'/worktree/path',
+				'/path/to/session',
+				'/path/to/status'
+			);
+			const setupHook = hooks.find((h: any) => h.event === 'SetupPlugin');
+			assert.ok(setupHook, 'Should include SetupPlugin event');
+		});
+
+		test('should include plugin directory creation', () => {
+			const hooks = agent.generateHooksConfig(
+				'/worktree/path',
+				'/path/to/session',
+				'/path/to/status'
+			);
+			const setupHook = hooks.find((h: any) => h.event === 'SetupPlugin');
+			assert.ok(setupHook.commands[0].command.includes('mkdir -p'), 'Should create plugin directory');
+		});
+
+		test('should write plugin file with session tracking', () => {
+			const hooks = agent.generateHooksConfig(
+				'/worktree/path',
+				'/path/to/session',
+				'/path/to/status'
+			);
+			const setupHook = hooks.find((h: any) => h.event === 'SetupPlugin');
+			const command = setupHook.commands[0].command;
+			assert.ok(command.includes('session.created'), 'Plugin should handle session.created event');
+			assert.ok(command.includes('session.status'), 'Plugin should handle session.status event');
+		});
+
+		test('should include session file path in plugin', () => {
+			const hooks = agent.generateHooksConfig(
+				'/worktree/path',
+				'/path/to/session',
+				'/path/to/status'
+			);
+			const setupHook = hooks.find((h: any) => h.event === 'SetupPlugin');
+			const command = setupHook.commands[0].command;
+			assert.ok(command.includes('/path/to/session'), 'Plugin should reference session file');
+		});
+
+		test('should include status file path in plugin', () => {
+			const hooks = agent.generateHooksConfig(
+				'/worktree/path',
+				'/path/to/session',
+				'/path/to/status'
+			);
+			const setupHook = hooks.find((h: any) => h.event === 'SetupPlugin');
+			const command = setupHook.commands[0].command;
+			assert.ok(command.includes('/path/to/status'), 'Plugin should reference status file');
+		});
+
+		test('should escape paths with special characters', () => {
+			const hooks = agent.generateHooksConfig(
+				"/worktree/path with 'quotes'",
+				"/path/to/session with 'quotes'",
+				"/path/to/status with 'quotes'"
+			);
+			const setupHook = hooks.find((h: any) => h.event === 'SetupPlugin');
+			const command = setupHook.commands[0].command;
+			// Command should use proper shell escaping
+			assert.ok(command.includes("'"), 'Should use single quotes for path escaping');
+		});
+	});
+
+	suite('MCP Support', () => {
+		test('should support MCP', () => {
+			assert.ok(agent.supportsMcp(), 'OpenCode should support MCP');
+		});
+
+		test('should return MCP config with lanes-workflow server', () => {
+			const config = agent.getMcpConfig('/worktree/path', '/workflow/path.yaml');
+			assert.ok(config, 'Should return MCP config');
+			assert.ok(config.mcpServers, 'Should have mcpServers');
+			assert.ok(config.mcpServers['lanes-workflow'], 'Should have lanes-workflow server');
+		});
+
+		test('should configure MCP server with correct command', () => {
+			const config = agent.getMcpConfig('/worktree/path', '/workflow/path.yaml');
+			const server = config.mcpServers['lanes-workflow'];
+			assert.strictEqual(server.command, 'node', 'MCP server should use node command');
+			assert.ok(Array.isArray(server.args), 'MCP server should have args array');
+		});
+
+		test('should include worktree path in MCP config', () => {
+			const config = agent.getMcpConfig('/worktree/path', '/workflow/path.yaml');
+			const server = config.mcpServers['lanes-workflow'];
+			assert.ok(server.args.includes('--worktree'), 'Should include --worktree flag');
+			assert.ok(server.args.includes('/worktree/path'), 'Should include worktree path');
+		});
+
+		test('should include workflow path in MCP config', () => {
+			const config = agent.getMcpConfig('/worktree/path', '/workflow/path.yaml');
+			const server = config.mcpServers['lanes-workflow'];
+			assert.ok(server.args.includes('--workflow-path'), 'Should include --workflow-path flag');
+			assert.ok(server.args.includes('/workflow/path.yaml'), 'Should include workflow path');
+		});
+	});
+});
+
 suite('Workflow Summary Feature', () => {
 
 	let tempDir: string;

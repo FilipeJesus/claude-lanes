@@ -172,6 +172,16 @@
             "default": "",
             "description": "Folder where session starting prompts are stored. Leave empty (default) to use VS Code's global storage (keeps repo clean). Set a path like '.claude/lanes' for repo-relative storage.",
             "order": 2
+          },
+          "lanes.preferredCodeAgent": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "opencode"
+            ],
+            "default": "claude",
+            "description": "The preferred code agent to use for new sessions. Claude Code is the default.",
+            "order": 3
           }
         }
       },

@@ -24,3 +24,4 @@ export { CodeAgent } from './CodeAgent';
 
 // Export concrete implementations
 export { ClaudeCodeAgent } from './ClaudeCodeAgent';
+export { OpenCodeAgent } from './OpenCodeAgent';
