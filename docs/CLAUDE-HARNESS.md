@@ -12,79 +12,13 @@ Each new Claude session begins with no memory of what came before. A harness sol
 - **Tracking progress** - Clear pass/fail status for each feature
 - **Enabling handoffs** - Fresh sessions can quickly assess the current state
 
-Lanes supports two harness approaches: a simple **features.json** approach for straightforward tasks, and a more sophisticated **MCP Workflow System** for complex, multi-phase development work.
-
----
-
-## Simple Approach: features.json
-
-For straightforward tasks where you want to track a list of features without complex orchestration, use the features.json approach.
-
-### Setting Up
-
-Add the following instructions to your project's `CLAUDE.md` file (or create one in your repository root):
-
-```markdown
-## Task Planning
-
-When starting a new task, create a `features.json` file to track all features:
-
-\`\`\`json
-{
-  "features": [
-    {
-      "id": "unique-feature-id",
-      "description": "What needs to be implemented",
-      "passes": false
-    }
-  ]
-}
-\`\`\`
-
-### Rules:
-- Break down the user's request into discrete, testable features
-- All features start with `passes: false`
-- Work on one feature at a time
-- Only set `passes: true` after the feature is fully implemented and tested
-- Commit changes after completing each feature
-- Delete `features.json` when the task is complete
-```
-
-### Required Fields
-
-Lanes expects the following structure in `features.json`:
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `features` | array | Yes | Array of feature objects |
-| `features[].id` | string | Yes | Unique identifier for the feature |
-| `features[].description` | string | Yes | What needs to be implemented |
-| `features[].passes` | boolean | Yes | Whether the feature is complete |
-
-> **Note:** Your harness can include additional fields (e.g., `priority`, `dependencies`, `assignee`) - Lanes only requires the fields listed above. Feel free to extend the schema to suit your workflow.
-
-### Example Workflow
-
-1. **User requests**: "Add user authentication with login and logout"
-2. **Claude creates** `features.json`:
-   ```json
-   {
-     "features": [
-       { "id": "login-form", "description": "Create login form UI", "passes": false },
-       { "id": "auth-api", "description": "Implement authentication API endpoint", "passes": false },
-       { "id": "logout", "description": "Add logout functionality", "passes": false },
-       { "id": "session-persistence", "description": "Persist user session across page reloads", "passes": false }
-     ]
-   }
-   ```
-3. **Claude works** on each feature incrementally, marking `passes: true` as each is completed
-4. **On completion**, Claude deletes the file and updates progress notes
+Lanes provides an **MCP Workflow System** - a structured approach using workflow templates, specialized agents, and MCP tools to guide Claude through complex development work.
 
 ---
 
 ## MCP Workflow System
 
-For more complex development work that requires structured phases (planning, implementation, testing, review), Lanes provides an MCP (Model Context Protocol) based workflow system.
+The MCP (Model Context Protocol) based workflow system provides structured phases for planning, implementation, testing, and review.
 
 ### What is the Workflow System?
 
@@ -94,8 +28,6 @@ The MCP Workflow System guides Claude through structured development phases usin
 - **Specialized Agents** - Sub-agents with specific roles and tool restrictions
 - **Reusable Loops** - Sub-workflows that iterate over tasks
 - **MCP Tools** - Functions Claude uses to navigate the workflow
-
-The system automatically syncs workflow progress with `features.json` so you get the benefits of both approaches.
 
 ### Key Concepts
 
@@ -186,9 +118,18 @@ Agents are specialized roles that execute specific workflow steps. Each agent ha
 
 **Steps** are the main workflow sequence. Each step has:
 - **id** - Unique identifier
-- **type** - Either `action` (single operation) or `loop` (iterate over tasks)
+- **type** - One of `action`, `loop`, or `ralph`
 - **agent** - (optional) Agent to execute the step
-- **instructions** - What to do (for action steps)
+- **instructions** - What to do (for action and ralph steps)
+- **n** - Number of iterations (required for ralph steps)
+
+**Step Types:**
+
+| Type | Purpose | Required Fields |
+|------|---------|-----------------|
+| `action` | Single operation executed once | `instructions` |
+| `loop` | Iterate over a list of tasks | References a defined loop |
+| `ralph` | Repeat same task n times for iterative refinement | `instructions`, `n` |
 
 **Loops** are reusable sub-workflows that iterate over a list of tasks. Each loop contains sub-steps that execute for each task:
 
@@ -220,6 +161,55 @@ steps:
 - `{task.id}` - Task identifier
 - `{task.title}` - Task title
 - `{task.description}` - Task description
+
+#### Ralph Steps (Iterative Refinement)
+
+**Ralph steps** are a special step type that repeats the same task `n` times to iteratively improve the result. This pattern is useful when you want Claude to refine its work through multiple passes.
+
+```yaml
+steps:
+  - id: plan
+    type: action
+    instructions: Create initial plan
+
+  - id: refine-plan
+    type: ralph
+    n: 3
+    instructions: |
+      Review and improve the plan.
+      Look for gaps, edge cases, and potential issues.
+      Refine the approach based on your analysis.
+
+  - id: implement
+    type: action
+    instructions: Implement the refined plan
+```
+
+**How Ralph Steps Work:**
+
+1. When Claude calls `workflow_advance` on a ralph step, the workflow checks the current iteration
+2. If iteration < n, the workflow returns the **same step** with incremented iteration count
+3. Claude receives clear messaging that this is intentional and should work on the task again
+4. When iteration reaches n, the workflow advances to the next step
+
+**Output Storage:**
+
+Each ralph iteration stores its output with a unique key including the iteration number:
+- `refine-plan.1` - Output from first iteration
+- `refine-plan.2` - Output from second iteration
+- `refine-plan.3` - Output from third iteration
+
+**Status Response:**
+
+The `workflow_status` response includes ralph-specific fields:
+- `ralphIteration` - Current iteration (1-based)
+- `ralphTotal` - Total iterations (the `n` value)
+
+**Best Use Cases:**
+- **Plan refinement** - Iterate on implementation plans before coding
+- **Code review** - Multiple passes to catch different types of issues
+- **Documentation** - Refine documentation through multiple drafts
+- **Test coverage** - Iteratively improve test cases
 
 #### 4. MCP Tools
 
@@ -371,16 +361,6 @@ The workflow system automatically persists state to `workflow-state.json` in you
 
 The state file is automatically updated after each step and should not be manually edited.
 
-### Integration with features.json
-
-The workflow system automatically syncs with `features.json`:
-
-- When you call `workflow_set_tasks`, tasks are written to `features.json` with `passes: false`
-- When a task completes (all loop sub-steps done), the corresponding feature is marked `passes: true`
-- The Lanes sidebar shows progress for both features.json and workflow state
-
-This means you get the benefits of both systems: structured workflow guidance AND simple progress tracking.
-
 ---
 
 ## Progress Tracking with claude-progress.txt
@@ -421,29 +401,25 @@ This gives new sessions immediate context about what's been accomplished.
 
 ---
 
-## Choosing the Right Approach
+## Choosing the Right Workflow
 
-| Use Case | Recommended Approach |
+| Use Case | Recommended Workflow |
 |----------|---------------------|
-| Simple feature list | features.json |
-| Quick bug fixes | features.json |
-| Proof of concepts | features.json |
-| Complex multi-phase development | MCP Workflow System |
-| Large refactors requiring multiple steps | MCP Workflow System |
-| Work requiring specialized agents | MCP Workflow System |
-| Standardized team workflow | MCP Workflow System (custom template) |
-
-You can also use both: start with features.json for quick work, then graduate to workflows for more complex tasks.
+| New features | feature.yaml |
+| Bug fixes | bugfix.yaml |
+| Code quality improvements | refactor.yaml |
+| General development | default.yaml |
+| Standardized team process | Custom workflow template |
 
 ---
 
 ## Best Practices
 
-1. **Always use a harness** - Even simple tasks benefit from structured tracking
-2. **Break down work into discrete units** - Smaller features/tasks are easier to complete and verify
+1. **Always use a workflow** - Even simple tasks benefit from structured tracking
+2. **Break down work into discrete units** - Smaller tasks are easier to complete and verify
 3. **Update claude-progress.txt at the end of each session** - Future sessions will thank you
-4. **Delete ephemeral files when done** - Clean up features.json, tests.json, workflow-state.json
-5. **Commit frequently** - Commit after each feature/task completion
+4. **Clean up when done** - Delete workflow-state.json when the task is complete
+5. **Commit frequently** - Commit after each task completion
 6. **Use workflows for consistency** - Create custom workflows for your team's standard processes
 
 ---

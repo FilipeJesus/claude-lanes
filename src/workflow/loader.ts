@@ -52,23 +52,29 @@ function validateAgentConfig(key: string, value: unknown): asserts value is Agen
     throw new WorkflowValidationError(`Agent '${key}' must have a 'description' string`);
   }
 
-  if (!isArray(value.tools)) {
-    throw new WorkflowValidationError(`Agent '${key}' must have a 'tools' array`);
-  }
+  // tools is optional - if omitted, agent has access to all tools
+  if (value.tools !== undefined) {
+    if (!isArray(value.tools)) {
+      throw new WorkflowValidationError(`Agent '${key}' tools must be an array if provided`);
+    }
 
-  for (const tool of value.tools) {
-    if (!isString(tool)) {
-      throw new WorkflowValidationError(`Agent '${key}' tools must be strings`);
+    for (const tool of value.tools) {
+      if (!isString(tool)) {
+        throw new WorkflowValidationError(`Agent '${key}' tools must be strings`);
+      }
     }
   }
 
-  if (!isArray(value.cannot)) {
-    throw new WorkflowValidationError(`Agent '${key}' must have a 'cannot' array`);
-  }
+  // cannot is optional - if omitted, no special restrictions
+  if (value.cannot !== undefined) {
+    if (!isArray(value.cannot)) {
+      throw new WorkflowValidationError(`Agent '${key}' cannot must be an array if provided`);
+    }
 
-  for (const restriction of value.cannot) {
-    if (!isString(restriction)) {
-      throw new WorkflowValidationError(`Agent '${key}' cannot restrictions must be strings`);
+    for (const restriction of value.cannot) {
+      if (!isString(restriction)) {
+        throw new WorkflowValidationError(`Agent '${key}' cannot restrictions must be strings`);
+      }
     }
   }
 }
@@ -124,8 +130,8 @@ function validateWorkflowStep(index: number, value: unknown): asserts value is W
 
   const stepId = value.id;
 
-  if (!isString(value.type) || (value.type !== 'action' && value.type !== 'loop')) {
-    throw new WorkflowValidationError(`Step '${stepId}' must have a 'type' of 'action' or 'loop'`);
+  if (!isString(value.type) || (value.type !== 'action' && value.type !== 'loop' && value.type !== 'ralph')) {
+    throw new WorkflowValidationError(`Step '${stepId}' must have a 'type' of 'action', 'loop', or 'ralph'`);
   }
 
   if (value.agent !== undefined && !isString(value.agent)) {
@@ -135,6 +141,15 @@ function validateWorkflowStep(index: number, value: unknown): asserts value is W
   if (value.type === 'action') {
     if (!isString(value.instructions)) {
       throw new WorkflowValidationError(`Action step '${stepId}' must have an 'instructions' string`);
+    }
+  }
+
+  if (value.type === 'ralph') {
+    if (!isString(value.instructions)) {
+      throw new WorkflowValidationError(`Ralph step '${stepId}' must have an 'instructions' string`);
+    }
+    if (value.n === undefined || typeof value.n !== 'number' || value.n < 1 || !Number.isInteger(value.n)) {
+      throw new WorkflowValidationError(`Ralph step '${stepId}' must have an 'n' field with a positive integer value`);
     }
   }
 }
