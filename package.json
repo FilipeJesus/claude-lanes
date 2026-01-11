@@ -116,6 +116,11 @@
         "command": "lanes.validateWorkflow",
         "title": "Lanes: Validate Workflow Template",
         "icon": "$(check)"
+      },
+      {
+        "command": "lanes.repairBrokenWorktrees",
+        "title": "Lanes: Repair Broken Worktrees",
+        "icon": "$(wrench)"
       }
     ],
     "menus": {
@@ -170,7 +175,7 @@
           "lanes.promptsFolder": {
             "type": "string",
             "default": "",
-            "description": "Folder where session starting prompts are stored. Leave empty (default) to use VS Code's global storage (keeps repo clean). Set a path like '.claude/lanes' for repo-relative storage.",
+            "description": "Folder where session starting prompts are stored. Leave empty (default) to use VS Code's global storage (keeps repo clean). Set a path like '.lanes' for repo-relative storage.",
             "order": 2
           }
         }
@@ -232,7 +237,7 @@
           },
           "lanes.customWorkflowsFolder": {
             "type": "string",
-            "default": ".claude/lanes/workflows",
+            "default": ".lanes/workflows",
             "description": "Workspace folder for custom workflow templates (relative to workspace root)",
             "order": 3
           }
