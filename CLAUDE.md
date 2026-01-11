@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Lanes is a VS Code extension that manages isolated Claude Code sessions using Git worktrees. Each session gets its own worktree and dedicated terminal.
+Lanes is a VS Code extension that manages isolated Agentic Code sessions using Git worktrees. Each session gets its own worktree and dedicated terminal.
 
 ## Key Files
 
@@ -12,25 +12,8 @@ Lanes is a VS Code extension that manages isolated Claude Code sessions using Gi
 | `src/ClaudeSessionProvider.ts` | Tree data provider for the sidebar |
 | `package.json` | Extension manifest (commands, views, menus, keybindings) |
 | `src/test/extension.test.ts` | Test suite |
-| `claude-progress.txt` | Session progress tracking (persisted) |
 | `workflow-state.json` | Workflow state managed by MCP tools (created during workflows) |
 | `tests.json` | **Agent-managed** - Test plan created by coder, implemented by test-engineer |
-
-## Workflow System
-
-Lanes uses a structured workflow system managed by MCP tools. When a workflow is active, tasks are tracked in `workflow-state.json`.
-
-### Starting a Workflow
-
-Use the `workflow_start` MCP tool to initialize a workflow. This creates the `workflow-state.json` file.
-
-### Task Management
-
-Tasks are managed through MCP workflow tools:
-- `workflow_set_tasks` - Define tasks for the current workflow
-- `workflow_advance` - Complete the current step and move to the next
-- `workflow_status` - Get current workflow position and progress
-- `workflow_context` - Get outputs from previous steps
 
 ## Agent Summary
 
@@ -74,22 +57,6 @@ The `tests.json` file is an ephemeral file managed by agents (not the Lanes exte
 2. **Coder** implements the feature
 3. **Test-engineer** implements each test and sets `implemented: true`
 4. When all tests pass, delete `tests.json`
-
-## Progress Tracking (Persisted)
-
-### claude-progress.txt
-
-Update at the end of each session:
-
-```
-## Session: [Date]
-
-### Completed
-- [What was accomplished]
-
-### Next Steps
-- [What should be done next]
-```
 
 ## Constraints
 

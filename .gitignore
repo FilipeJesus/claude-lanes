@@ -14,5 +14,9 @@ features.json
 tests.json
 .claude/settings.local.json
 
+# OpenCode session files
+.opencode-session
+.opencode-status
+
 # Git worktrees directory
 .worktrees/
