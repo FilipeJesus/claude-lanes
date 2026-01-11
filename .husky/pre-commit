@@ -10,8 +10,8 @@ npm run compile || exit 1
 echo "🧹 Running ESLint..."
 npm run lint || exit 1
 
-# Run tests
+# Run tests (use xvfb-run if available for headless environments)
 echo "🧪 Running tests..."
-npm run test || exit 1
+xvfb-run -a npm run test || exit 1
 
 echo "✅ All checks passed!"
