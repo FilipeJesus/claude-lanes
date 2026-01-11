@@ -646,6 +646,11 @@ export class GitChangesPanel {
             overflow: hidden;
         }
 
+        /* Allow comment button to extend outside the cell */
+        .diff-table td.line-content {
+            overflow: visible;
+        }
+
         .line-num {
             width: 50px;
             min-width: 50px;
@@ -776,7 +781,8 @@ export class GitChangesPanel {
 
         .comment-btn {
             position: absolute;
-            right: 8px;
+            /* Position button to the left, near the line number columns */
+            left: -52px;
             top: 50%;
             transform: translateY(-50%);
             width: 20px;
