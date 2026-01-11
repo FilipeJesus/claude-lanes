@@ -10,19 +10,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **MCP-based Agentic Workflow System** - Structured workflow (via Model Context Protocol) that guides Claude through planning → implementing → testing → reviewing phases
+- **MCP-based Agentic Workflow System** - Structured workflows via Model Context Protocol that guide Claude through planning → implementing → testing → reviewing phases
 - **Custom Workflow Templates** - Create YAML workflow templates in `.lanes/workflows/` with agents, loops, and steps
 - **Workflow Template Dropdown** - Session creation form now shows available workflows with refresh button
 - **MCP Session Creation** - `session_create` endpoint allows programmatic session creation via MCP
 - **Workflow Progress Display** - Session tree view shows current workflow step/task as child items
 - **CodeAgent Abstraction** - Modular `CodeAgent` class for future AI agent extensibility (preparing for multi-agent support)
 - **Built-in Workflow Templates** - Feature, bugfix, refactor, and default workflow templates in `workflows/` included as references
+- **Ralph Loop Step Type** - Iterative refinement loops for workflows that repeat until completion criteria are met
+- **Repair Broken Worktrees Command** - `Lanes: Repair Broken Worktrees` command to manually fix broken worktrees after container rebuilds
+- **DevContainer Support** - Added devcontainer configuration with SSH agent forwarding for seamless Git authentication
+- **GitHub Actions CI** - Automated PR checks workflow for continuous integration
+- **Open VSX Registry Publishing** - Extension now published to Open VSX in addition to VS Code Marketplace
+- **Comprehensive Documentation** - New `docs/docs.html` with full user documentation, workflow guides, and API reference
+- **Source Branch Fetching** - Automatically fetch source branch before creating a session
+- **Automatic Workflow Reminders** - Claude receives automatic reminders to call `workflow_advance` after each step
 
 ### Changed
 
-- Built-in workflows are now template-only (not selectable in dropdown, copy to use)
+- Built-in workflows are now template-only (not selectable in dropdown, copy to customize)
 - Workflow and task info moved to child item in session tree view
 - **Lanes folder moved from `.claude/lanes/` to `.lanes/`** - Custom workflows and pending sessions now stored in `.lanes/` at repository root
+- Add comment button moved to left side of diff view for better ergonomics
+- Agents and loops are now optional in workflow templates
+
+### Removed
+
+- Removed `features.json` integration from extension (deprecated in favor of workflow system)
 
 ### Migration
 
@@ -37,6 +51,8 @@ mv .claude/lanes .lanes
 - Hidden built-in workflows from sidebar tree view
 - Added explicit step boundaries to prevent skipping workflow steps
 - Workflow dropdown now populates correctly after webview recreation
+- Git integration tests now CI-friendly with proper configuration
+- Use workspace `.claude` directory for pending sessions
 
 ## [0.10.4] - 2026-01-04
 
