@@ -1275,7 +1275,7 @@ export async function activate(context: vscode.ExtensionContext) {
                 // Get sanitized repo name for project naming
                 const repoName = getRepoName(baseRepoPath).replace(/[<>:"/\\|?*]/g, '_');
                 const projectName = `${repoName}-${item.label}`;
-                await addProject(projectName, item.worktreePath, ['claude-lanes']);
+                await addProject(projectName, item.worktreePath, ['lanes']);
             }
 
             // Open the folder in a new VS Code window

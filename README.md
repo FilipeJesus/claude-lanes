@@ -49,7 +49,7 @@ sudo apt-get install jq  # Ubuntu/Debian
 
 ### Install
 
-Search for **"Lanes"** in the VS Code Extensions marketplace, or visit the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.claude-lanes).
+Search for **"Lanes"** in the VS Code Extensions marketplace, or visit the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.lanes).
 
 **From Source:**
 

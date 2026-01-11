@@ -50,7 +50,7 @@ export function initialize(context: vscode.ExtensionContext): void {
     }
 
     // Get our extension's global storage path and derive Project Manager's path from it
-    // Our path: .../globalStorage/FilipeMarquesJesus.claude-lanes
+    // Our path: .../globalStorage/FilipeMarquesJesus.lanes
     // PM path:  .../globalStorage/alefragnani.project-manager
     const ourStoragePath = context.globalStorageUri.fsPath;
     const globalStorageDir = path.dirname(ourStoragePath);
@@ -171,7 +171,7 @@ export async function addProject(
         if (existingIndex >= 0) {
             // Update existing project
             projects[existingIndex].name = name;
-            projects[existingIndex].tags = tags || ['claude-lanes'];
+            projects[existingIndex].tags = tags || ['lanes'];
         } else {
             // Add new project
             projects.push({

@@ -69,7 +69,7 @@ if [[ -f "README.github.md" ]]; then
 fi
 
 # Show what will be published
-VSIX_FILE="claude-lanes-${NEW_VERSION#v}.vsix"
+VSIX_FILE="lanes-${NEW_VERSION#v}.vsix"
 echo ""
 echo "📋 Package contents:"
 unzip -l "$VSIX_FILE" | head -20
@@ -100,7 +100,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo "🌐 Publishing to Open VSX Registry..."
     if npx ovsx publish "$VSIX_FILE" -p "$OVSX_PAT"; then
       echo "✅ Published to Open VSX Registry"
-      echo "   Open VSX: https://open-vsx.org/extension/FilipeMarquesJesus/claude-lanes"
+      echo "   Open VSX: https://open-vsx.org/extension/FilipeMarquesJesus/lanes"
     else
       echo "⚠️  Warning: Open VSX publish failed (VS Code Marketplace publish was successful)"
     fi
@@ -125,5 +125,5 @@ fi
 
 echo ""
 echo "✅ Release $NEW_VERSION complete!"
-echo "   VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.claude-lanes"
-echo "   Open VSX Registry: https://open-vsx.org/extension/FilipeMarquesJesus/claude-lanes"
+echo "   VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.lanes"
+echo "   Open VSX Registry: https://open-vsx.org/extension/FilipeMarquesJesus/lanes"

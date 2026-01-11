@@ -13,10 +13,10 @@ Visit [www.lanes.pro](https://lanes.pro) to learn more about Lanes.
 
 ## Installation
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/FilipeMarquesJesus.claude-lanes?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.claude-lanes)
-[![Open VSX](https://img.shields.io/open-vsx/v/FilipeMarquesJesus/claude-lanes?label=Open%20VSX&logo=vscodium)](https://open-vsx.org/extension/FilipeMarquesJesus/claude-lanes)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/FilipeMarquesJesus.lanes?label=VS%20Code%20Marketplace&logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.lanes)
+[![Open VSX](https://img.shields.io/open-vsx/v/FilipeMarquesJesus/lanes?label=Open%20VSX&logo=vscodium)](https://open-vsx.org/extension/FilipeMarquesJesus/lanes)
 
-Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.claude-lanes) or [Open VSX Registry](https://open-vsx.org/extension/FilipeMarquesJesus/claude-lanes).
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=FilipeMarquesJesus.lanes) or [Open VSX Registry](https://open-vsx.org/extension/FilipeMarquesJesus/lanes).
 
 ## Example View
 
@@ -40,7 +40,7 @@ Session tracking files are stored in VS Code's global storage, which is destroye
 ```json
 {
   "mounts": [
-    "source=lanes-storage,target=/root/.vscode-server/data/User/globalStorage/FilipeMarquesJesus.claude-lanes,type=volume"
+    "source=lanes-storage,target=/root/.vscode-server/data/User/globalStorage/FilipeMarquesJesus.lanes,type=volume"
   ]
 }
 ```
