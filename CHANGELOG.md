@@ -5,10 +5,21 @@ All notable changes to the Lanes extension will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-01-12
+
+### Added
+
+- **Explicit Delegation Signals** - MCP workflow system now clearly indicates when the orchestrator should spawn a sub-agent to handle a step, preventing accidental work execution by the main agent
+
+### Changed
+
+- **Simplified Agent Configuration** - Removed `tools` and `cannot` fields from workflow system as they didn't actually restrict agent behavior
+- **Improved Orchestrator Instructions** - Enhanced workflow instructions to better clarify agent roles, sub-agent spawning, and workflow advance behavior
+
 ## [1.0.1] - 2026-01-12
 
-## Fix
-- Fixed issue in lanes' create lanes MCP endpoint which errored when claude tried to use a custom workflow for a lane.
+### Fixed
+- Fixed issue in lanes' create lanes MCP endpoint which errored when claude tried to use a custom workflow for a lane
 
 
 ## [1.0.0] - 2026-01-11
