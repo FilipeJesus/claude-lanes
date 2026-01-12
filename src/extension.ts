@@ -1688,32 +1688,32 @@ export function combinePromptAndCriteria(prompt?: string, acceptanceCriteria?: s
  * Generates the workflow orchestrator instructions to prepend to a prompt.
  * These instructions guide Claude through the structured workflow phases.
  */
-function getWorkflowOrchestratorInstructions(): string {
-    return `You are an orchestrator agent following a structured workflow.
+function getWorkflowOrchestratorInstructions(workflow?: string | null): string {
+    return `You are the main agent following a structured workflow. Your goal is to successfully complete the workflow which guides you through the work requested by your user.
+To be successfull you must follow the workflow and follow these instructions carefully.
 
 ## CRITICAL RULES
 
 1. **Always check workflow_status first** to see your current step
-2. **Follow the agent restrictions** - only use tools you're allowed to use
-3. **For implementation/test/review steps**, spawn sub-agents using the Task tool
-4. **Call workflow_advance** after completing each step
-5. **Never skip steps** - complete each one before advancing
-6. **Only perform actions for the CURRENT step** - do NOT call workflow tools that belong to future steps. If you are unsure about a parameter value (like a loop name), read the workflow file or wait for the step that provides that information instead of guessing.
+2. **For tasks/steps which specify a agent or subagent**, spawn sub-agents using the Task tool to do the task even if you think you can do it yourself
+3. **Call workflow_advance** after completing each step
+4. **Never skip steps** - complete each one before advancing
+5. **Only perform actions for the CURRENT step** - do NOT call workflow tools that belong to future steps. If you are unsure about a parameter value (like a loop name), read the workflow file (${workflow}) or wait for the step that provides that information instead of guessing.
+6. **Do NOT call workflow_set_tasks unless instructed to do so in the step instructions**
+7. **Do not play the role of a specified agent** - always spawn the required agent using the Task tool
 
 ## Workflow
 
-1. Call workflow_start to begin
-2. In planning phase: analyze the goal, then call workflow_set_tasks
-3. In executing phase: follow instructions for each step
-4. When complete: review all work and commit if approved
+1. Call workflow_start to begin the workflow
+2. In workflow: follow instructions for each step and only that step at the end of each step call workflow_advance to move to the next step
+3. When complete: review all work and commit if approved
 
 ## Sub-Agent Spawning
 
-When the current step requires an agent other than orchestrator:
-- Use the Task tool to spawn a sub-agent
-- Include the agent's tool restrictions in the prompt
+When the current step requires an agent/subagent other than orchestrator:
+- Use the Task tool to spawn a sub-agent, make sure it knows it should NOT call workflow_advance
 - Wait for the sub-agent to complete
-- Call workflow_advance with a summary
+- YOU should call workflow_advance with a summary
 
 ---
 
@@ -1839,10 +1839,10 @@ async function openClaudeTerminal(taskName: string, worktreePath: string, prompt
 
         // For workflow sessions, prepend orchestrator instructions
         if (workflow && combinedPrompt) {
-            combinedPrompt = getWorkflowOrchestratorInstructions() + combinedPrompt;
+            combinedPrompt = getWorkflowOrchestratorInstructions(workflow) + combinedPrompt;
         } else if (workflow) {
             // Even without a user prompt, workflow sessions need orchestrator instructions
-            combinedPrompt = getWorkflowOrchestratorInstructions() + 'Start the workflow and follow the steps.';
+            combinedPrompt = getWorkflowOrchestratorInstructions(workflow) + 'Start the workflow and follow the steps.';
         }
 
         // Write prompt to file for history and to avoid terminal buffer issues
