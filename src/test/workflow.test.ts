@@ -31,8 +31,12 @@ description: A test workflow
 agents:
   orchestrator:
     description: Main orchestrator
+    tools: [read, glob]
+    cannot: [write]
   implementer:
     description: Code implementer
+    tools: [read, write, edit]
+    cannot: [commit]
 
 loops:
   task_loop:
@@ -64,6 +68,8 @@ description: A minimal workflow
 agents:
   default:
     description: Default agent
+    tools: [read]
+    cannot: []
 
 loops: {}
 
@@ -221,7 +227,9 @@ suite('Workflow Loader', () => {
 				description: 'A valid template',
 				agents: {
 					agent1: {
-						description: 'Agent 1'
+						description: 'Agent 1',
+						tools: ['read'],
+						cannot: []
 					}
 				},
 				loops: {},
@@ -355,6 +363,8 @@ description: A template
 agents:
   known_agent:
     description: Known agent
+    tools: [read]
+    cannot: []
 loops: {}
 steps:
   - id: step1
@@ -577,6 +587,8 @@ suite('Workflow State Machine', () => {
 			assert.strictEqual(status.instructions, 'Plan the work');
 			assert.strictEqual(status.progress.currentStep, 1);
 			assert.strictEqual(status.progress.totalSteps, 3);
+			assert.strictEqual(status.agent, null);
+			assert.strictEqual(status.delegate, false);
 		});
 
 		test('Start returns first step with correct agent info', () => {
@@ -588,6 +600,8 @@ description: Template with agent on first step
 agents:
   starter:
     description: Starting agent
+    tools: [read]
+    cannot: [write]
 
 loops: {}
 
@@ -604,6 +618,7 @@ steps:
 
 			// Assert
 			assert.strictEqual(status.agent, 'starter');
+			assert.strictEqual(status.delegate, true);
 		});
 
 		test('Start on minimal template works correctly', () => {
@@ -618,6 +633,8 @@ steps:
 			assert.strictEqual(status.status, 'running');
 			assert.strictEqual(status.step, 'only_step');
 			assert.strictEqual(status.progress.totalSteps, 1);
+			assert.strictEqual(status.agent, null);
+			assert.strictEqual(status.delegate, false);
 		});
 
 		test('State machine handles workflow without agents or loops', () => {
@@ -639,11 +656,13 @@ steps:
 			let status = machine.start();
 			assert.strictEqual(status.step, 'step1');
 			assert.strictEqual(status.agent, null);
+			assert.strictEqual(status.delegate, false);
 
 			// Act & Assert: Advance to step 2
 			status = machine.advance('Step 1 done');
 			assert.strictEqual(status.step, 'step2');
 			assert.strictEqual(status.agent, null);
+			assert.strictEqual(status.delegate, false);
 
 			// Act & Assert: Complete workflow
 			status = machine.advance('Step 2 done');
@@ -748,6 +767,8 @@ steps:
 			assert.strictEqual(status.step, 'task_loop');
 			assert.strictEqual(status.stepType, 'loop');
 			assert.strictEqual(status.subStep, 'implement');
+			assert.strictEqual(status.agent, 'implementer');
+			assert.strictEqual(status.delegate, true);
 			assert.ok(status.task);
 			assert.strictEqual(status.task.index, 0);
 			assert.strictEqual(status.task.id, 'task1');
@@ -769,6 +790,8 @@ steps:
 
 			// Assert: Now at second sub-step (verify)
 			assert.strictEqual(status.subStep, 'verify');
+			assert.strictEqual(status.agent, null);
+			assert.strictEqual(status.delegate, false);
 			assert.strictEqual(status.task?.id, 'task1');
 
 			// Act: Advance through second sub-step
@@ -878,8 +901,14 @@ steps:
 			machine.advance('Plan done'); // -> task_loop
 			machine.setTasks('task_loop', []); // No tasks, skip to review
 
+			// Check status before completing
+			let status = machine.getStatus();
+			assert.strictEqual(status.step, 'review');
+			assert.strictEqual(status.agent, 'orchestrator');
+			assert.strictEqual(status.delegate, true);
+
 			// Act: Complete the review step
-			const status = machine.advance('Review done');
+			status = machine.advance('Review done');
 
 			// Assert
 			assert.strictEqual(status.status, 'complete');
@@ -1341,6 +1370,7 @@ suite('Built-in Templates', () => {
 		assert.strictEqual(status.status, 'running');
 		assert.strictEqual(status.step, 'plan');
 		assert.strictEqual(status.agent, null);
+		assert.strictEqual(status.delegate, false);
 		assert.ok(status.instructions.includes('Analyze the goal'));
 	});
 
@@ -1357,6 +1387,7 @@ suite('Built-in Templates', () => {
 		assert.strictEqual(status.status, 'running');
 		assert.strictEqual(status.step, 'investigate');
 		assert.strictEqual(status.agent, 'investigator');
+		assert.strictEqual(status.delegate, true);
 		assert.ok(status.instructions.includes('Investigate the bug'));
 	});
 
@@ -1373,6 +1404,7 @@ suite('Built-in Templates', () => {
 		assert.strictEqual(status.status, 'running');
 		assert.strictEqual(status.step, 'analyze');
 		assert.strictEqual(status.agent, 'analyzer');
+		assert.strictEqual(status.delegate, true);
 		assert.ok(status.instructions.includes('Analyze the code'));
 	});
 
