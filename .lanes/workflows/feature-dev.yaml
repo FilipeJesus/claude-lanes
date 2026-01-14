@@ -62,7 +62,9 @@ steps:
   - id: plan
     type: action
     instructions: |
-      Analyze the goal and break it into discrete tasks.
+      Analyze the goal and break it into discrete tasks, importantly a test should NOT
+      BE considered a task as testing should be done in the same step as feature development.
+      ONLY CONSIDER testing to be a task if the user explicitly requests a test creation feature.
 
       Consider:
       1. What are the individual features or changes needed?
@@ -85,6 +87,7 @@ steps:
       Call workflow_set_tasks('feature_development', tasks) when done.
 
       IMPORTANT: The loop is named 'feature_development' - use exactly this name.
+      CRITIAL: Do NOT include testing as a task unless explicitly requested by the user.
 
   - id: feature_development
     type: loop
