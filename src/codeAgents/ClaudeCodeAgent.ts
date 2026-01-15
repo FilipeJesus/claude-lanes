@@ -176,7 +176,8 @@ export class ClaudeCodeAgent extends CodeAgent {
                 sessionId: data.sessionId,
                 timestamp: data.timestamp,
                 workflow: data.workflow,
-                agentName: this.config.name
+                agentName: this.config.name,
+                isChimeEnabled: data.isChimeEnabled
             };
         } catch {
             return null;

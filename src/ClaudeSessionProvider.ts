@@ -21,6 +21,10 @@ const VALID_STATUS_VALUES: ClaudeStatusState[] = ['working', 'waiting_for_user',
 let globalStorageUri: vscode.Uri | undefined;
 let baseRepoPathForStorage: string | undefined;
 let globalCodeAgent: CodeAgent | undefined;
+let globalExtensionContext: vscode.ExtensionContext | undefined;
+
+// Track previous icon state per session to detect transitions
+const previousIconState = new Map<string, string>();
 
 /**
  * Initialize the global storage context.
@@ -28,11 +32,13 @@ let globalCodeAgent: CodeAgent | undefined;
  * @param storageUri The globalStorageUri from the extension context
  * @param baseRepoPath The base repository path for generating unique identifiers
  * @param codeAgent Optional CodeAgent instance for agent-specific behavior
+ * @param context The extension context for accessing resources like audio files
  */
-export function initializeGlobalStorageContext(storageUri: vscode.Uri, baseRepoPath?: string, codeAgent?: CodeAgent): void {
+export function initializeGlobalStorageContext(storageUri: vscode.Uri, baseRepoPath?: string, codeAgent?: CodeAgent, context?: vscode.ExtensionContext): void {
     globalStorageUri = storageUri;
     baseRepoPathForStorage = baseRepoPath;
     globalCodeAgent = codeAgent;
+    globalExtensionContext = context;
 }
 
 /**
@@ -327,6 +333,7 @@ export interface ClaudeSessionData {
     sessionId: string;
     timestamp?: string;
     workflow?: string;
+    isChimeEnabled?: boolean;
 }
 
 /**
@@ -388,6 +395,68 @@ export function getSessionWorkflow(worktreePath: string): string | null {
         return null;
     } catch {
         return null;
+    }
+}
+
+/**
+ * Get the chime enabled preference from a worktree's .claude-session file
+ * @param worktreePath Path to the worktree directory
+ * @returns true if chime is enabled, false otherwise (defaults to false)
+ */
+export function getSessionChimeEnabled(worktreePath: string): boolean {
+    const sessionPath = getClaudeSessionPath(worktreePath);
+
+    try {
+        if (!fs.existsSync(sessionPath)) {
+            return false;
+        }
+
+        const content = fs.readFileSync(sessionPath, 'utf-8');
+        const data = JSON.parse(content);
+
+        // Default to false if property doesn't exist
+        if (typeof data.isChimeEnabled === 'boolean') {
+            return data.isChimeEnabled;
+        }
+
+        return false;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Set the chime enabled preference for a worktree's .claude-session file
+ * Preserves existing session data (sessionId, timestamp, workflow)
+ * @param worktreePath Path to the worktree directory
+ * @param enabled Whether chime should be enabled
+ */
+export function setSessionChimeEnabled(worktreePath: string, enabled: boolean): void {
+    const sessionPath = getClaudeSessionPath(worktreePath);
+
+    try {
+        // Ensure directory exists
+        const dir = path.dirname(sessionPath);
+        if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+        }
+
+        // Read existing data if present
+        let existingData: Record<string, unknown> = {};
+        if (fs.existsSync(sessionPath)) {
+            try {
+                const content = fs.readFileSync(sessionPath, 'utf-8');
+                existingData = JSON.parse(content);
+            } catch {
+                // Ignore parse errors, start fresh
+            }
+        }
+
+        // Merge isChimeEnabled into existing data
+        const mergedData = { ...existingData, isChimeEnabled: enabled };
+        fs.writeFileSync(sessionPath, JSON.stringify(mergedData, null, 2), 'utf-8');
+    } catch (err) {
+        console.warn('Lanes: Failed to set session chime preference:', err);
     }
 }
 
@@ -472,7 +541,8 @@ export function getSessionId(worktreePath: string): ClaudeSessionData | null {
             return {
                 sessionId: sessionData.sessionId,
                 timestamp: sessionData.timestamp,
-                workflow: sessionData.workflow
+                workflow: sessionData.workflow,
+                isChimeEnabled: sessionData.isChimeEnabled
             };
         }
 
@@ -494,7 +564,8 @@ export function getSessionId(worktreePath: string): ClaudeSessionData | null {
         return {
             sessionId: data.sessionId,
             timestamp: data.timestamp,
-            workflow: data.workflow
+            workflow: data.workflow,
+            isChimeEnabled: data.isChimeEnabled
         };
     } catch {
         // Graceful fallback for any error (invalid JSON, read error, etc.)
@@ -639,22 +710,50 @@ export class SessionItem extends vscode.TreeItem {
 
     /**
      * Get the appropriate icon based on Claude status
+     * Plays chime when transitioning to 'waiting_for_user' state
      */
     private getIconForStatus(claudeStatus?: ClaudeStatus | null): vscode.ThemeIcon {
+        let iconId: string;
+
         if (!claudeStatus) {
-            return new vscode.ThemeIcon('git-branch');
+            iconId = 'git-branch';
+        } else {
+            switch (claudeStatus.status) {
+                case 'waiting_for_user':
+                    iconId = 'bell';
+                    break;
+                case 'working':
+                    iconId = 'sync~spin';
+                    break;
+                case 'error':
+                    iconId = 'error';
+                    break;
+                case 'idle':
+                default:
+                    iconId = 'git-branch';
+            }
         }
 
-        switch (claudeStatus.status) {
-            case 'waiting_for_user':
-                return new vscode.ThemeIcon('bell', new vscode.ThemeColor('charts.yellow'));
-            case 'working':
-                return new vscode.ThemeIcon('sync~spin');
-            case 'error':
-                return new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'));
-            case 'idle':
-            default:
-                return new vscode.ThemeIcon('git-branch');
+        // Check for transition to 'waiting_for_user' and play chime if enabled
+        const previousIcon = previousIconState.get(this.worktreePath);
+        if (iconId === 'bell' && previousIcon !== 'bell') {
+            // Transition to waiting_for_user detected
+            if (getSessionChimeEnabled(this.worktreePath)) {
+                // Play chime asynchronously via command (don't block UI)
+                void vscode.commands.executeCommand('claudeWorktrees.playChime');
+            }
+        }
+
+        // Store current icon state for next time
+        previousIconState.set(this.worktreePath, iconId);
+
+        // Return the appropriate ThemeIcon with colors
+        if (iconId === 'bell') {
+            return new vscode.ThemeIcon('bell', new vscode.ThemeColor('charts.yellow'));
+        } else if (iconId === 'error') {
+            return new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'));
+        } else {
+            return new vscode.ThemeIcon(iconId);
         }
     }
 

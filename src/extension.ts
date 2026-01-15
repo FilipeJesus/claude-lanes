@@ -6,6 +6,8 @@ import {
     ClaudeSessionProvider,
     SessionItem,
     getSessionId,
+    getSessionChimeEnabled,
+    setSessionChimeEnabled,
     initializeGlobalStorageContext,
     isGlobalStorageEnabled,
     getGlobalStoragePath,
@@ -703,7 +705,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Initialize global storage context for session file storage
     // This must be done before creating the session provider
-    initializeGlobalStorageContext(context.globalStorageUri, baseRepoPath, codeAgent);
+    initializeGlobalStorageContext(context.globalStorageUri, baseRepoPath, codeAgent, context);
     console.log(`Global storage initialized at: ${context.globalStorageUri.fsPath}`);
 
     // Initialize Tree Data Provider with the base repo path
@@ -796,6 +798,7 @@ export async function activate(context: vscode.ExtensionContext) {
             new vscode.RelativePattern(globalStoragePath, '**/.claude-status')
         );
 
+        // Refresh on any status file change
         globalStorageWatcher.onDidChange(() => sessionProvider.refresh());
         globalStorageWatcher.onDidCreate(() => sessionProvider.refresh());
         globalStorageWatcher.onDidDelete(() => sessionProvider.refresh());
@@ -1404,6 +1407,53 @@ export async function activate(context: vscode.ExtensionContext) {
     });
     context.subscriptions.push(repairBrokenWorktreesDisposable);
 
+    // 12. Register PLAY CHIME Command (internal command for playing chime sound)
+    const playChimeDisposable = vscode.commands.registerCommand('claudeWorktrees.playChime', () => {
+        sessionFormProvider.playChime();
+    });
+    context.subscriptions.push(playChimeDisposable);
+
+    // 13. Register TEST CHIME Command (for debugging)
+    const testChimeDisposable = vscode.commands.registerCommand('claudeWorktrees.testChime', async () => {
+        try {
+            sessionFormProvider.playChime();
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to test chime: ${getErrorMessage(err)}`);
+        }
+    });
+    context.subscriptions.push(testChimeDisposable);
+
+    // 14. Register TOGGLE CHIME Command
+    const toggleChimeDisposable = vscode.commands.registerCommand('claudeWorktrees.toggleChime', async (item: SessionItem) => {
+        if (!item || !item.worktreePath) {
+            vscode.window.showErrorMessage('Please right-click on a session to toggle chime.');
+            return;
+        }
+
+        try {
+            // Get the current chime state
+            const currentState = getSessionChimeEnabled(item.worktreePath);
+
+            // Toggle the boolean
+            const newState = !currentState;
+
+            // Persist the change
+            setSessionChimeEnabled(item.worktreePath, newState);
+
+            // Show user feedback
+            const message = newState
+                ? `Chime enabled for session '${item.label}'`
+                : `Chime disabled for session '${item.label}'`;
+            vscode.window.showInformationMessage(message);
+
+            // Refresh the session provider to update UI
+            sessionProvider.refresh();
+        } catch (err) {
+            vscode.window.showErrorMessage(`Failed to toggle chime: ${getErrorMessage(err)}`);
+        }
+    });
+    context.subscriptions.push(toggleChimeDisposable);
+
     // Auto-resume Claude session when opened in a worktree with an existing session
     if (isInWorktree && workspaceRoot) {
         const sessionData = getSessionId(workspaceRoot);
@@ -1415,6 +1465,9 @@ export async function activate(context: vscode.ExtensionContext) {
             }, 500);
         }
     }
+
+    // Initial refresh to ensure tree view shows current state after activation/reload
+    sessionProvider.refresh();
 }
 
 /**

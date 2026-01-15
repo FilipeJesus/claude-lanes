@@ -48,6 +48,9 @@ export interface SessionData {
 
     /** Name of the agent that created this session */
     agentName: string;
+
+    /** Whether audio notification/chime is enabled for this session */
+    isChimeEnabled?: boolean;
 }
 
 /**
