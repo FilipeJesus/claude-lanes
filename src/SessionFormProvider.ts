@@ -194,16 +194,30 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Play the chime sound in the webview
+     */
+    public playChime() {
+        if (this._view && this._view.visible) {
+            this._view.webview.postMessage({ command: 'playChime' });
+        } else {
+            console.log("❌ Extension: Webview is hidden or undefined.");
+        }
+    }
+
+    /**
      * Generate the HTML content for the webview form
      */
     private _getHtmlForWebview(webview: vscode.Webview): string {
+        const chimeUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, 'media', 'chime.mp3')
+        );
         const nonce = this._getNonce();
         return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; media-src ${webview.cspSource};">
     <title>New Session</title>
     <style>
         * {
@@ -384,6 +398,8 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
         <button type="submit" id="submitBtn">Create Session</button>
     </form>
 
+    <audio id="chime-player" src="${chimeUri}"></audio>
+
     <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         const form = document.getElementById('sessionForm');
@@ -535,6 +551,22 @@ export class SessionFormProvider implements vscode.WebviewViewProvider {
                     break;
             }
         });
+
+            
+        const player = document.getElementById('chime-player');
+
+        window.addEventListener('message', event => {
+            const message = event.data;
+            
+            if (message.command === 'playChime') {
+                if (player) {
+                    player.play().catch(e => console.error("Play Error:", e));
+                } else {
+                    console.error("Player element lost!");
+                }
+            }
+        });
+            
     </script>
 </body>
 </html>`;

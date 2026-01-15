@@ -121,6 +121,15 @@
         "command": "lanes.repairBrokenWorktrees",
         "title": "Lanes: Repair Broken Worktrees",
         "icon": "$(wrench)"
+      },
+      {
+        "command": "claudeWorktrees.toggleChime",
+        "title": "Toggle Chime",
+        "icon": "$(bell)"
+      },
+      {
+        "command": "claudeWorktrees.testChime",
+        "title": "Lanes: Test Chime"
       }
     ],
     "menus": {
@@ -151,6 +160,11 @@
           "command": "claudeWorktrees.deleteSession",
           "when": "view == claudeSessionsView",
           "group": "inline"
+        },
+        {
+          "command": "claudeWorktrees.toggleChime",
+          "when": "view == claudeSessionsView && viewItem == sessionItem",
+          "group": "inline@2"
         }
       ]
     },
