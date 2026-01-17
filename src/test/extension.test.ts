@@ -1779,7 +1779,10 @@ suite('Configuration Tests', () => {
 				4,
 				'lanes.chimeSound should have 4 enum descriptions'
 			);
-		});
+		})
+	})
+});
+
 suite('Local Settings Integration', () => {
 
 	let tempDir: string;
