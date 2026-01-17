@@ -94,6 +94,16 @@ If you prefer to set up your development environment manually:
 
 To install and test your compiled extension in your regular VS Code installation (not the Extension Development Host):
 
+**Quick Method (Recommended):**
+
+```bash
+./scripts/install-local.sh
+```
+
+This compiles, packages, and installs the extension in one command.
+
+**Manual Method:**
+
 1. **Compile the extension**
 
    ```bash
