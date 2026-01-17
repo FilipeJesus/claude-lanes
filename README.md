@@ -60,6 +60,14 @@ npm run compile && npx vsce package
 # Then install the .vsix via "Extensions: Install from VSIX..."
 ```
 
+**Or use the local install script:**
+
+```bash
+./scripts/install-local.sh
+```
+
+This compiles, packages, and installs the extension in one command.
+
 ---
 
 ## Usage
